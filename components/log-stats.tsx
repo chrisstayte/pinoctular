@@ -1,14 +1,13 @@
 "use client"
 
 import {
-  type PinoLogEntry,
+  type SourcedLogEntry,
   type LogLevel,
   getLevelName,
-  LEVEL_BG_COLORS,
 } from "@/lib/log-types"
 
 interface LogStatsProps {
-  logs: PinoLogEntry[]
+  logs: SourcedLogEntry[]
 }
 
 export function LogStats({ logs }: LogStatsProps) {
