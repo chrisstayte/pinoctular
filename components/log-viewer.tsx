@@ -513,129 +513,6 @@ export function LogViewer() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* ── Desktop controls (lg+) ── */}
-          {hasLogs && (
-            <div className="hidden lg:flex items-center gap-2">
-              {/* View mode toggles */}
-              <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5">
-                <Button
-                  variant={viewMode === 'table' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() => setViewMode('table')}
-                >
-                  <List className="h-3 w-3 mr-1" />
-                  Table
-                </Button>
-                {sourceNames.length > 1 && (
-                  <Button
-                    variant={viewMode === 'diff' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="h-6 px-2 text-[10px]"
-                    onClick={() => {
-                      setViewMode('diff');
-                      if (!diffSourceA && sourceNames.length >= 2) {
-                        setDiffSourceA(sourceNames[0]);
-                        setDiffSourceB(sourceNames[1]);
-                      }
-                    }}
-                  >
-                    <GitCompare className="h-3 w-3 mr-1" />
-                    Diff
-                  </Button>
-                )}
-                {traceField && (
-                  <Button
-                    variant={viewMode === 'trace' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="h-6 px-2 text-[10px]"
-                    onClick={() => setViewMode('trace')}
-                  >
-                    <Network className="h-3 w-3 mr-1" />
-                    Traces
-                  </Button>
-                )}
-              </div>
-
-              {/* Panel toggles */}
-              <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5">
-                <Button
-                  variant={panels.has('timeline') ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() => togglePanel('timeline')}
-                  title="Timeline histogram"
-                >
-                  <BarChart3 className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant={panels.has('trends') ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() => togglePanel('trends')}
-                  title="Level trends"
-                >
-                  <TrendingUp className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant={panels.has('errors') ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() => togglePanel('errors')}
-                  title="Error clusters"
-                >
-                  <AlertTriangle className="h-3 w-3" />
-                </Button>
-              </div>
-
-              {/* Bookmarks toggle */}
-              <Button
-                variant={showBookmarksOnly ? 'secondary' : 'ghost'}
-                size="sm"
-                className="h-6 px-2 text-[10px] gap-1"
-                onClick={() => setShowBookmarksOnly(!showBookmarksOnly)}
-              >
-                {showBookmarksOnly ? (
-                  <BookmarkCheck className="h-3 w-3 text-primary" />
-                ) : (
-                  <Bookmark className="h-3 w-3" />
-                )}
-                {bookmarks.size > 0 && (
-                  <span className="text-[9px]">{bookmarks.size}</span>
-                )}
-              </Button>
-
-              {/* Context lines */}
-              <select
-                className="h-6 text-[10px] bg-secondary border border-border rounded px-1 text-foreground"
-                value={contextLines}
-                onChange={(e) => setContextLines(Number(e.target.value))}
-                title="Context lines"
-              >
-                <option value={0}>No context</option>
-                <option value={1}>+/- 1 line</option>
-                <option value={3}>+/- 3 lines</option>
-                <option value={5}>+/- 5 lines</option>
-                <option value={10}>+/- 10 lines</option>
-              </select>
-
-              {/* Keyboard shortcuts button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0"
-                onClick={() => setShowShortcuts(true)}
-                title="Keyboard shortcuts (?)"
-              >
-                <Keyboard className="h-3 w-3" />
-              </Button>
-
-              <div className="w-48">
-                <LogStats logs={allLogs} />
-              </div>
-            </div>
-          )}
-
           {/* ── Mobile/tablet controls trigger (< lg) ── */}
           {hasLogs && (
             <Button
@@ -844,6 +721,127 @@ export function LogViewer() {
         />
       ) : (
         <>
+          {/* ── Desktop controls bar (lg+) ── */}
+          <div className="hidden lg:flex items-center gap-2 px-4 py-2 border-b border-border bg-card">
+            {/* View mode toggles */}
+            <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5">
+              <Button
+                variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={() => setViewMode('table')}
+              >
+                <List className="h-3 w-3 mr-1" />
+                Table
+              </Button>
+              {sourceNames.length > 1 && (
+                <Button
+                  variant={viewMode === 'diff' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => {
+                    setViewMode('diff');
+                    if (!diffSourceA && sourceNames.length >= 2) {
+                      setDiffSourceA(sourceNames[0]);
+                      setDiffSourceB(sourceNames[1]);
+                    }
+                  }}
+                >
+                  <GitCompare className="h-3 w-3 mr-1" />
+                  Diff
+                </Button>
+              )}
+              {traceField && (
+                <Button
+                  variant={viewMode === 'trace' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => setViewMode('trace')}
+                >
+                  <Network className="h-3 w-3 mr-1" />
+                  Traces
+                </Button>
+              )}
+            </div>
+
+            {/* Panel toggles */}
+            <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5">
+              <Button
+                variant={panels.has('timeline') ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={() => togglePanel('timeline')}
+                title="Timeline histogram"
+              >
+                <BarChart3 className="h-3 w-3" />
+              </Button>
+              <Button
+                variant={panels.has('trends') ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={() => togglePanel('trends')}
+                title="Level trends"
+              >
+                <TrendingUp className="h-3 w-3" />
+              </Button>
+              <Button
+                variant={panels.has('errors') ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={() => togglePanel('errors')}
+                title="Error clusters"
+              >
+                <AlertTriangle className="h-3 w-3" />
+              </Button>
+            </div>
+
+            {/* Bookmarks toggle */}
+            <Button
+              variant={showBookmarksOnly ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-6 px-2 text-[10px] gap-1"
+              onClick={() => setShowBookmarksOnly(!showBookmarksOnly)}
+            >
+              {showBookmarksOnly ? (
+                <BookmarkCheck className="h-3 w-3 text-primary" />
+              ) : (
+                <Bookmark className="h-3 w-3" />
+              )}
+              {bookmarks.size > 0 && (
+                <span className="text-[9px]">{bookmarks.size}</span>
+              )}
+            </Button>
+
+            {/* Context lines */}
+            <select
+              className="h-6 text-[10px] bg-secondary border border-border rounded px-1 text-foreground"
+              value={contextLines}
+              onChange={(e) => setContextLines(Number(e.target.value))}
+              title="Context lines"
+            >
+              <option value={0}>No context</option>
+              <option value={1}>+/- 1 line</option>
+              <option value={3}>+/- 3 lines</option>
+              <option value={5}>+/- 5 lines</option>
+              <option value={10}>+/- 10 lines</option>
+            </select>
+
+            {/* Keyboard shortcuts button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+              onClick={() => setShowShortcuts(true)}
+              title="Keyboard shortcuts (?)"
+            >
+              <Keyboard className="h-3 w-3" />
+            </Button>
+
+            <div className="ml-auto w-48">
+              <LogStats logs={allLogs} />
+            </div>
+          </div>
+
           {/* Toolbar (table & trace views) */}
           {viewMode !== 'diff' && (
             <LogToolbar
