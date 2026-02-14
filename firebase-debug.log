@@ -26,3 +26,31 @@
 [debug] [2026-02-14T15:06:02.173Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
 [debug] [2026-02-14T15:06:02.174Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
 [debug] [2026-02-14T15:06:02.174Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
+[debug] [2026-02-14T15:29:30.487Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T15:29:30.489Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
+[debug] [2026-02-14T15:29:30.489Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T15:29:30.489Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
+[debug] [2026-02-14T15:29:30.500Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T15:29:30.501Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
+[debug] [2026-02-14T15:29:30.508Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T15:29:30.508Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
+[debug] [2026-02-14T15:29:30.508Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T15:29:30.508Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
+[debug] [2026-02-14T15:29:30.509Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T15:29:30.509Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
+[debug] [2026-02-14T15:29:30.509Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T15:29:30.509Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
+[debug] [2026-02-14T15:31:12.119Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T15:31:12.120Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
+[debug] [2026-02-14T15:31:12.120Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T15:31:12.121Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
+[debug] [2026-02-14T15:31:12.127Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T15:31:12.127Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
+[debug] [2026-02-14T15:31:12.134Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T15:31:12.134Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
+[debug] [2026-02-14T15:31:12.135Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T15:31:12.135Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
+[debug] [2026-02-14T15:31:12.135Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T15:31:12.135Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)
+[debug] [2026-02-14T15:31:12.136Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T15:31:12.136Z] > authorizing via signed-in user (chrisstayte@pixelandtexel.com)

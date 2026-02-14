@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useRef } from "react"
-import { Upload, ClipboardPaste, FileText, X } from "lucide-react"
+import { Upload, ClipboardPaste, FileText, X, Github } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { PinoLogEntry } from "@/lib/log-types"
 import { parseLogs } from "@/lib/log-types"
@@ -159,6 +159,16 @@ export function LogInput({ onLogsLoaded, hasLogs, onClear }: LogInputProps) {
           </div>
         </div>
       )}
+
+      <a
+        href="https://github.com/chrisstayte/pinoctular"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <Github className="h-4 w-4" />
+        Check it out on GitHub
+      </a>
     </div>
   )
 }
