@@ -10,16 +10,22 @@ import {
   Plus,
   Play,
   Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { PinoLogEntry } from '@/lib/log-types';
-import { parseLogs } from '@/lib/log-types';
+import type { ParseLogDiagnostics, PinoLogEntry } from '@/lib/log-types';
+import { parseLogsDetailed } from '@/lib/log-types';
 
 interface LogInputProps {
   onLogsLoaded: (logs: PinoLogEntry[], source: string) => void;
   hasLogs: boolean;
   onClear: () => void;
   onAddSource?: (logs: PinoLogEntry[], source: string) => void;
+  onDiagnostics?: (source: string, diagnostics: ParseLogDiagnostics) => void;
+}
+
+function parseFileText(text: string) {
+  return parseLogsDetailed(text);
 }
 
 export function LogInput({
@@ -27,92 +33,96 @@ export function LogInput({
   hasLogs,
   onClear,
   onAddSource,
+  onDiagnostics,
 }: LogInputProps) {
   const [mode, setMode] = useState<'idle' | 'paste'>('idle');
   const [pasteValue, setPasteValue] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [loadingExample, setLoadingExample] = useState(false);
+  const [parseWarning, setParseWarning] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleParsedLogs = useCallback(
+    (
+      text: string,
+      source: string,
+      onSuccess: (logs: PinoLogEntry[], source: string) => void
+    ) => {
+      const { entries, diagnostics } = parseFileText(text);
+      onDiagnostics?.(source, diagnostics);
+
+      if (entries.length > 0) {
+        onSuccess(entries, source);
+      }
+
+      if (diagnostics.skippedLines > 0) {
+        setParseWarning(
+          `${source}: parsed ${diagnostics.parsedLines}/${diagnostics.totalLines} lines (${diagnostics.skippedLines} skipped).`
+        );
+      } else {
+        setParseWarning(null);
+      }
+    },
+    [onDiagnostics]
+  );
+
+  const readFileText = useCallback((file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => resolve((event.target?.result as string) ?? '');
+      reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+      reader.readAsText(file);
+    });
+  }, []);
 
   const handleLoadExample = useCallback(async () => {
     setLoadingExample(true);
     try {
       const res = await fetch('/example.log');
       const text = await res.text();
-      const logs = parseLogs(text);
-      if (logs.length > 0) {
-        onLogsLoaded(logs, 'example.log');
-      }
+      handleParsedLogs(text, 'example.log', onLogsLoaded);
     } catch {
       // silently fail
     } finally {
       setLoadingExample(false);
     }
-  }, [onLogsLoaded]);
-
-  const handleFile = useCallback(
-    (file: File) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target?.result as string;
-        const logs = parseLogs(text);
-        if (logs.length > 0) {
-          onLogsLoaded(logs, file.name);
-        }
-      };
-      reader.readAsText(file);
-    },
-    [onLogsLoaded]
-  );
+  }, [handleParsedLogs, onLogsLoaded]);
 
   const handleMultipleFiles = useCallback(
-    (files: FileList) => {
-      if (files.length === 1) {
-        handleFile(files[0]);
-        return;
-      }
-      Array.from(files).forEach((file, index) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const text = e.target?.result as string;
-          const logs = parseLogs(text);
-          if (logs.length > 0) {
-            if (index === 0 && !hasLogs) {
-              onLogsLoaded(logs, file.name);
-            } else if (onAddSource) {
-              onAddSource(logs, file.name);
-            }
+    async (files: FileList) => {
+      const fileArray = Array.from(files);
+      for (const [index, file] of fileArray.entries()) {
+        const text = await readFileText(file);
+        handleParsedLogs(text, file.name, (logs, source) => {
+          if (index === 0 && !hasLogs) {
+            onLogsLoaded(logs, source);
+            return;
           }
-        };
-        reader.readAsText(file);
-      });
+          onAddSource?.(logs, source);
+        });
+      }
     },
-    [handleFile, onLogsLoaded, onAddSource, hasLogs]
+    [handleParsedLogs, hasLogs, onAddSource, onLogsLoaded, readFileText]
   );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setDragOver(false);
-      if (e.dataTransfer.files.length > 1) {
-        handleMultipleFiles(e.dataTransfer.files);
-      } else {
-        const file = e.dataTransfer.files[0];
-        if (file) handleFile(file);
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        void handleMultipleFiles(files);
       }
     },
-    [handleFile, handleMultipleFiles]
+    [handleMultipleFiles]
   );
 
   const handlePaste = useCallback(() => {
     if (!pasteValue.trim()) return;
-    const logs = parseLogs(pasteValue);
-    if (logs.length > 0) {
-      onLogsLoaded(logs, 'Pasted logs');
-      setPasteValue('');
-      setMode('idle');
-    }
-  }, [pasteValue, onLogsLoaded]);
+    handleParsedLogs(pasteValue, 'Pasted logs', onLogsLoaded);
+    setPasteValue('');
+    setMode('idle');
+  }, [handleParsedLogs, pasteValue, onLogsLoaded]);
 
   if (hasLogs) {
     return null;
@@ -129,6 +139,13 @@ export function LogInput({
           compare sources.
         </p>
       </div>
+
+      {parseWarning && (
+        <div className="w-full max-w-2xl rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 flex items-start gap-2">
+          <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <span>{parseWarning}</span>
+        </div>
+      )}
 
       {mode === 'idle' ? (
         <div className="flex flex-col gap-4 w-full max-w-lg">
@@ -162,7 +179,7 @@ export function LogInput({
               onChange={(e) => {
                 const files = e.target.files;
                 if (files && files.length > 0) {
-                  handleMultipleFiles(files);
+                  void handleMultipleFiles(files);
                 }
               }}
             />
@@ -288,8 +305,10 @@ export function LogSourceBadge({
 
 export function AddSourceButton({
   onAddSource,
+  onDiagnostics,
 }: {
   onAddSource: (logs: PinoLogEntry[], source: string) => void;
+  onDiagnostics?: (source: string, diagnostics: ParseLogDiagnostics) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -308,8 +327,9 @@ export function AddSourceButton({
             const reader = new FileReader();
             reader.onload = (ev) => {
               const text = ev.target?.result as string;
-              const logs = parseLogs(text);
-              if (logs.length > 0) onAddSource(logs, file.name);
+              const { entries, diagnostics } = parseLogsDetailed(text);
+              onDiagnostics?.(file.name, diagnostics);
+              if (entries.length > 0) onAddSource(entries, file.name);
             };
             reader.readAsText(file);
           });
