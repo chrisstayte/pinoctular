@@ -1,17 +1,9 @@
-"use client"
+'use client';
 
-import { useState, memo } from "react"
-import {
-  Search,
-  X,
-  Download,
-  Filter,
-  Plus,
-  Trash2,
-  Regex,
-} from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
+import { useState, memo } from 'react';
+import { Search, X, Download, Filter, Plus, Trash2, Regex } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import {
   type LogLevel,
   type FieldFilter,
@@ -19,41 +11,48 @@ import {
   LEVEL_BG_COLORS,
   exportAsJSON,
   exportAsCSV,
-} from "@/lib/log-types"
+} from '@/lib/log-types';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from '@/components/ui/dropdown-menu';
 
-const ALL_LEVELS: LogLevel[] = ["trace", "debug", "info", "warn", "error", "fatal"]
+const ALL_LEVELS: LogLevel[] = [
+  'trace',
+  'debug',
+  'info',
+  'warn',
+  'error',
+  'fatal',
+];
 
 interface LogToolbarProps {
-  search: string
-  onSearchChange: (value: string) => void
-  isRegex: boolean
-  onRegexToggle: () => void
-  regexError: string | null
-  activeLevels: Set<LogLevel>
-  onToggleLevel: (level: LogLevel) => void
-  onSetAllLevels: (levels: LogLevel[]) => void
-  modules: string[]
-  activeModules: Set<string>
-  onToggleModule: (mod: string) => void
-  filteredCount: number
-  totalCount: number
+  search: string;
+  onSearchChange: (value: string) => void;
+  isRegex: boolean;
+  onRegexToggle: () => void;
+  regexError: string | null;
+  activeLevels: Set<LogLevel>;
+  onToggleLevel: (level: LogLevel) => void;
+  onSetAllLevels: (levels: LogLevel[]) => void;
+  modules: string[];
+  activeModules: Set<string>;
+  onToggleModule: (mod: string) => void;
+  filteredCount: number;
+  totalCount: number;
   // Field filters
-  fieldFilters: FieldFilter[]
-  onAddFieldFilter: (filter: FieldFilter) => void
-  onRemoveFieldFilter: (id: string) => void
-  availableFields: string[]
+  fieldFilters: FieldFilter[];
+  onAddFieldFilter: (filter: FieldFilter) => void;
+  onRemoveFieldFilter: (id: string) => void;
+  availableFields: string[];
   // Export
-  filteredLogs: SourcedLogEntry[]
+  filteredLogs: SourcedLogEntry[];
   // Sources
-  sourceNames: string[]
-  activeSources: Set<string>
-  onToggleSource: (name: string) => void
+  sourceNames: string[];
+  activeSources: Set<string>;
+  onToggleSource: (name: string) => void;
 }
 
 export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
@@ -79,19 +78,24 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
   activeSources,
   onToggleSource,
 }: LogToolbarProps) {
-  const allLevelsActive = activeLevels.size === ALL_LEVELS.length
-  const allModulesActive = activeModules.size === modules.length
+  const allLevelsActive = activeLevels.size === ALL_LEVELS.length;
+  const allModulesActive = activeModules.size === modules.length;
 
-  const handleExport = (format: "json" | "csv") => {
-    const content = format === "json" ? exportAsJSON(filteredLogs) : exportAsCSV(filteredLogs)
-    const blob = new Blob([content], { type: format === "json" ? "application/json" : "text/csv" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `logs-export.${format}`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
+  const handleExport = (format: 'json' | 'csv') => {
+    const content =
+      format === 'json'
+        ? exportAsJSON(filteredLogs)
+        : exportAsCSV(filteredLogs);
+    const blob = new Blob([content], {
+      type: format === 'json' ? 'application/json' : 'text/csv',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `logs-export.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="flex flex-col gap-2 px-4 py-3 border-b border-border bg-card">
@@ -101,11 +105,13 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             type="text"
-            placeholder={isRegex ? "Regex pattern..." : "Search logs..."}
+            placeholder={isRegex ? 'Regex pattern...' : 'Search logs...'}
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             className={`pl-9 pr-16 h-8 text-sm bg-secondary border-border font-mono placeholder:font-sans ${
-              regexError ? "border-log-error/50 focus-visible:ring-log-error/30" : ""
+              regexError
+                ? 'border-log-error/50 focus-visible:ring-log-error/30'
+                : ''
             }`}
             id="log-search-input"
           />
@@ -113,8 +119,8 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
             <button
               className={`p-0.5 rounded transition-colors ${
                 isRegex
-                  ? "text-primary bg-primary/10"
-                  : "text-muted-foreground/40 hover:text-muted-foreground"
+                  ? 'text-primary bg-primary/10'
+                  : 'text-muted-foreground/40 hover:text-muted-foreground'
               }`}
               onClick={onRegexToggle}
               title="Toggle regex search"
@@ -124,7 +130,7 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
             {search && (
               <button
                 className="text-muted-foreground hover:text-foreground"
-                onClick={() => onSearchChange("")}
+                onClick={() => onSearchChange('')}
                 aria-label="Clear search"
               >
                 <X className="h-3.5 w-3.5" />
@@ -133,7 +139,9 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
           </div>
         </div>
         {regexError && (
-          <span className="text-[10px] text-log-error shrink-0">{regexError}</span>
+          <span className="text-[10px] text-log-error shrink-0">
+            {regexError}
+          </span>
         )}
 
         <DropdownMenu>
@@ -144,10 +152,16 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleExport("json")} className="text-xs">
+            <DropdownMenuItem
+              onClick={() => handleExport('json')}
+              className="text-xs"
+            >
               Export as JSON (NDJSON)
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExport("csv")} className="text-xs">
+            <DropdownMenuItem
+              onClick={() => handleExport('csv')}
+              className="text-xs"
+            >
               Export as CSV
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -162,12 +176,16 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
 
       {/* Filter row */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider mr-1">Level</span>
+        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider mr-1">
+          Level
+        </span>
         <div className="flex items-center gap-0.5 mr-1">
           <Button
             variant="ghost"
             size="sm"
-            className={`h-5 text-[10px] px-1.5 ${allLevelsActive ? "text-foreground" : "text-muted-foreground"}`}
+            className={`h-5 text-[10px] px-1.5 ${
+              allLevelsActive ? 'text-foreground' : 'text-muted-foreground'
+            }`}
             onClick={() => onSetAllLevels([...ALL_LEVELS])}
           >
             All
@@ -176,14 +194,18 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
           <Button
             variant="ghost"
             size="sm"
-            className={`h-5 text-[10px] px-1.5 ${activeLevels.size === 0 ? "text-foreground" : "text-muted-foreground"}`}
+            className={`h-5 text-[10px] px-1.5 ${
+              activeLevels.size === 0
+                ? 'text-foreground'
+                : 'text-muted-foreground'
+            }`}
             onClick={() => onSetAllLevels([])}
           >
             None
           </Button>
         </div>
         {ALL_LEVELS.map((level) => {
-          const active = activeLevels.has(level)
+          const active = activeLevels.has(level);
           return (
             <button
               key={level}
@@ -191,35 +213,37 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
               className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
                 active
                   ? LEVEL_BG_COLORS[level]
-                  : "bg-transparent border-border text-muted-foreground/50 opacity-50"
+                  : 'bg-transparent border-border text-muted-foreground/50 opacity-50'
               }`}
-              aria-label={`${active ? "Hide" : "Show"} ${level} logs`}
+              aria-label={`${active ? 'Hide' : 'Show'} ${level} logs`}
             >
               {level}
             </button>
-          )
+          );
         })}
 
         {/* Source filters */}
         {sourceNames.length > 1 && (
           <>
             <div className="w-px h-4 bg-border mx-1" />
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider mr-1">Source</span>
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider mr-1">
+              Source
+            </span>
             {sourceNames.map((name) => {
-              const active = activeSources.has(name)
+              const active = activeSources.has(name);
               return (
                 <button
                   key={name}
                   onClick={() => onToggleSource(name)}
                   className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium transition-all cursor-pointer ${
                     active
-                      ? "bg-primary/10 text-primary border-primary/20"
-                      : "bg-transparent border-border text-muted-foreground/50 opacity-50"
+                      ? 'bg-primary/10 text-primary border-primary/20'
+                      : 'bg-transparent border-border text-muted-foreground/50 opacity-50'
                   }`}
                 >
                   {name}
                 </button>
-              )
+              );
             })}
           </>
         )}
@@ -227,30 +251,36 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
         {modules.length > 1 && (
           <>
             <div className="w-px h-4 bg-border mx-1" />
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider mr-1">Module</span>
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider mr-1">
+              Module
+            </span>
             {modules.map((mod) => {
-              const active = activeModules.has(mod)
+              const active = activeModules.has(mod);
               return (
                 <button
                   key={mod}
                   onClick={() => onToggleModule(mod)}
                   className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium transition-all cursor-pointer ${
                     active
-                      ? "bg-primary/10 text-primary border-primary/20"
-                      : "bg-transparent border-border text-muted-foreground/50 opacity-50"
+                      ? 'bg-primary/10 text-primary border-primary/20'
+                      : 'bg-transparent border-border text-muted-foreground/50 opacity-50'
                   }`}
-                  aria-label={`${active ? "Hide" : "Show"} module ${mod}`}
+                  aria-label={`${active ? 'Hide' : 'Show'} module ${mod}`}
                 >
                   {mod}
                 </button>
-              )
+              );
             })}
             {!allModulesActive && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-5 text-[10px] text-muted-foreground px-1.5"
-                onClick={() => modules.forEach((m) => { if (!activeModules.has(m)) onToggleModule(m) })}
+                onClick={() =>
+                  modules.forEach((m) => {
+                    if (!activeModules.has(m)) onToggleModule(m);
+                  })
+                }
               >
                 Show all
               </Button>
@@ -267,8 +297,8 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
         availableFields={availableFields}
       />
     </div>
-  )
-})
+  );
+});
 
 function FieldFilterRow({
   filters,
@@ -276,28 +306,28 @@ function FieldFilterRow({
   onRemove,
   availableFields,
 }: {
-  filters: FieldFilter[]
-  onAdd: (filter: FieldFilter) => void
-  onRemove: (id: string) => void
-  availableFields: string[]
+  filters: FieldFilter[];
+  onAdd: (filter: FieldFilter) => void;
+  onRemove: (id: string) => void;
+  availableFields: string[];
 }) {
-  const [adding, setAdding] = useState(false)
-  const [field, setField] = useState("")
-  const [operator, setOperator] = useState<FieldFilter["operator"]>("contains")
-  const [value, setValue] = useState("")
+  const [adding, setAdding] = useState(false);
+  const [field, setField] = useState('');
+  const [operator, setOperator] = useState<FieldFilter['operator']>('contains');
+  const [value, setValue] = useState('');
 
   const handleAdd = () => {
-    if (!field || !value) return
+    if (!field || !value) return;
     onAdd({
       id: `${field}-${operator}-${value}-${Date.now()}`,
       field,
       operator,
       value,
-    })
-    setField("")
-    setValue("")
-    setAdding(false)
-  }
+    });
+    setField('');
+    setValue('');
+    setAdding(false);
+  };
 
   if (filters.length === 0 && !adding) {
     return (
@@ -310,7 +340,7 @@ function FieldFilterRow({
           Add field filter
         </button>
       </div>
-    )
+    );
   }
 
   return (
@@ -324,7 +354,15 @@ function FieldFilterRow({
         >
           <span className="font-mono text-primary">{filter.field}</span>
           <span className="text-muted-foreground">
-            {filter.operator === "equals" ? "=" : filter.operator === "not_equals" ? "!=" : filter.operator === "contains" ? "~" : filter.operator === "not_contains" ? "!~" : "re:"}
+            {filter.operator === 'equals'
+              ? '='
+              : filter.operator === 'not_equals'
+              ? '!='
+              : filter.operator === 'contains'
+              ? '~'
+              : filter.operator === 'not_contains'
+              ? '!~'
+              : 're:'}
           </span>
           <span className="font-mono text-foreground">{filter.value}</span>
           <button
@@ -353,7 +391,9 @@ function FieldFilterRow({
           <select
             className="text-[10px] bg-secondary border border-border rounded px-1 py-0.5 text-foreground h-5"
             value={operator}
-            onChange={(e) => setOperator(e.target.value as FieldFilter["operator"])}
+            onChange={(e) =>
+              setOperator(e.target.value as FieldFilter['operator'])
+            }
           >
             <option value="contains">contains</option>
             <option value="equals">equals</option>
@@ -368,8 +408,12 @@ function FieldFilterRow({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") handleAdd()
-              if (e.key === "Escape") { setAdding(false); setField(""); setValue("") }
+              if (e.key === 'Enter') handleAdd();
+              if (e.key === 'Escape') {
+                setAdding(false);
+                setField('');
+                setValue('');
+              }
             }}
             autoFocus
           />
@@ -386,7 +430,11 @@ function FieldFilterRow({
             variant="ghost"
             size="sm"
             className="h-5 px-1 text-[10px] text-muted-foreground"
-            onClick={() => { setAdding(false); setField(""); setValue("") }}
+            onClick={() => {
+              setAdding(false);
+              setField('');
+              setValue('');
+            }}
           >
             Cancel
           </Button>
@@ -401,5 +449,5 @@ function FieldFilterRow({
         </button>
       )}
     </div>
-  )
+  );
 }
