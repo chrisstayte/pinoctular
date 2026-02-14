@@ -155,6 +155,9 @@ export function LogViewer() {
               <span className="text-[10px] font-bold text-primary-foreground font-mono">P</span>
             </div>
             <h1 className="text-sm font-semibold text-foreground tracking-tight">Pino Log Viewer</h1>
+            {process.env.NEXT_PUBLIC_APP_VERSION && (
+              <span className="text-[10px] text-muted-foreground font-mono">v{process.env.NEXT_PUBLIC_APP_VERSION}</span>
+            )}
           </div>
           {hasLogs && (
             <>

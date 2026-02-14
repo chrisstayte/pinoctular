@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -19,6 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version and push tag
+        id: tag
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch
 
       - uses: pnpm/action-setup@v4
         with:
@@ -31,11 +40,19 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm build
+      - name: Build with version
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_APP_VERSION: ${{ steps.tag.outputs.new_version }}
 
       - uses: actions/upload-pages-artifact@v3
         with:
           path: out
+
+    outputs:
+      new_version: ${{ steps.tag.outputs.new_version }}
+      new_tag: ${{ steps.tag.outputs.new_tag }}
+      changelog: ${{ steps.tag.outputs.changelog }}
 
   deploy:
     needs: build
@@ -46,3 +63,15 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ needs.build.outputs.new_tag }}
+          name: ${{ needs.build.outputs.new_version }}
+          body: ${{ needs.build.outputs.changelog }}
+          generateReleaseNotes: true
