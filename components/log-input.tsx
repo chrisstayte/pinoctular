@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useRef } from "react"
-import { Upload, ClipboardPaste, FileText, X, Github } from "lucide-react"
+import { Upload, ClipboardPaste, FileText, X, Github, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { PinoLogEntry } from "@/lib/log-types"
 import { parseLogs } from "@/lib/log-types"
@@ -10,9 +10,10 @@ interface LogInputProps {
   onLogsLoaded: (logs: PinoLogEntry[], source: string) => void
   hasLogs: boolean
   onClear: () => void
+  onAddSource?: (logs: PinoLogEntry[], source: string) => void
 }
 
-export function LogInput({ onLogsLoaded, hasLogs, onClear }: LogInputProps) {
+export function LogInput({ onLogsLoaded, hasLogs, onClear, onAddSource }: LogInputProps) {
   const [mode, setMode] = useState<"idle" | "paste">("idle")
   const [pasteValue, setPasteValue] = useState("")
   const [dragOver, setDragOver] = useState(false)
@@ -33,14 +34,43 @@ export function LogInput({ onLogsLoaded, hasLogs, onClear }: LogInputProps) {
     [onLogsLoaded]
   )
 
+  const handleMultipleFiles = useCallback(
+    (files: FileList) => {
+      if (files.length === 1) {
+        handleFile(files[0])
+        return
+      }
+      Array.from(files).forEach((file, index) => {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          const text = e.target?.result as string
+          const logs = parseLogs(text)
+          if (logs.length > 0) {
+            if (index === 0 && !hasLogs) {
+              onLogsLoaded(logs, file.name)
+            } else if (onAddSource) {
+              onAddSource(logs, file.name)
+            }
+          }
+        }
+        reader.readAsText(file)
+      })
+    },
+    [handleFile, onLogsLoaded, onAddSource, hasLogs]
+  )
+
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
       setDragOver(false)
-      const file = e.dataTransfer.files[0]
-      if (file) handleFile(file)
+      if (e.dataTransfer.files.length > 1) {
+        handleMultipleFiles(e.dataTransfer.files)
+      } else {
+        const file = e.dataTransfer.files[0]
+        if (file) handleFile(file)
+      }
     },
-    [handleFile]
+    [handleFile, handleMultipleFiles]
   )
 
   const handlePaste = useCallback(() => {
@@ -64,7 +94,7 @@ export function LogInput({ onLogsLoaded, hasLogs, onClear }: LogInputProps) {
           Pino Log Viewer
         </h1>
         <p className="text-sm text-muted-foreground">
-          Upload a .log file or paste your Pino JSON logs
+          Upload log files or paste your Pino JSON logs. Drop multiple files to compare sources.
         </p>
       </div>
 
@@ -94,18 +124,21 @@ export function LogInput({ onLogsLoaded, hasLogs, onClear }: LogInputProps) {
               ref={fileInputRef}
               type="file"
               accept=".log,.txt,.json,.ndjson"
+              multiple
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) handleFile(file)
+                const files = e.target.files
+                if (files && files.length > 0) {
+                  handleMultipleFiles(files)
+                }
               }}
             />
             <Upload className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
             <p className="text-sm font-medium text-foreground">
-              Drop your .log file here
+              Drop your .log files here
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              or click to browse
+              or click to browse — supports multiple files
             </p>
           </div>
 
@@ -199,5 +232,43 @@ export function LogSourceBadge({
         <X className="h-3 w-3" />
       </Button>
     </div>
+  )
+}
+
+export function AddSourceButton({ onAddSource }: { onAddSource: (logs: PinoLogEntry[], source: string) => void }) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  return (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".log,.txt,.json,.ndjson"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = e.target.files
+          if (!files) return
+          Array.from(files).forEach((file) => {
+            const reader = new FileReader()
+            reader.onload = (ev) => {
+              const text = ev.target?.result as string
+              const logs = parseLogs(text)
+              if (logs.length > 0) onAddSource(logs, file.name)
+            }
+            reader.readAsText(file)
+          })
+        }}
+      />
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-6 gap-1 text-xs text-muted-foreground hover:text-foreground"
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <Plus className="h-3 w-3" />
+        Add source
+      </Button>
+    </>
   )
 }
