@@ -6,6 +6,7 @@ const config: Config = {
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
+    './lib/**/*.{js,ts,jsx,tsx,mdx}',
     '*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
@@ -65,14 +66,12 @@ const config: Config = {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
-        log: {
-          trace: 'hsl(var(--log-trace))',
-          debug: 'hsl(var(--log-debug))',
-          info: 'hsl(var(--log-info))',
-          warn: 'hsl(var(--log-warn))',
-          error: 'hsl(var(--log-error))',
-          fatal: 'hsl(var(--log-fatal))',
-        },
+        'log-trace': 'hsl(var(--log-trace) / <alpha-value>)',
+        'log-debug': 'hsl(var(--log-debug) / <alpha-value>)',
+        'log-info': 'hsl(var(--log-info) / <alpha-value>)',
+        'log-warn': 'hsl(var(--log-warn) / <alpha-value>)',
+        'log-error': 'hsl(var(--log-error) / <alpha-value>)',
+        'log-fatal': 'hsl(var(--log-fatal) / <alpha-value>)',
       },
       borderRadius: {
         lg: 'var(--radius)',
