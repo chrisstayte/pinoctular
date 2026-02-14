@@ -326,7 +326,7 @@ export const TimelineHistogram = memo(function TimelineHistogram({
                     return (
                       <div
                         key={level}
-                        className="w-full rounded-sm"
+                        className="w-full"
                         style={{
                           height: `${(h / 100) * 48}px`,
                           backgroundColor: LEVEL_BAR_COLORS[level],

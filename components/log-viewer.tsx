@@ -316,6 +316,10 @@ export function LogViewer() {
     setActiveLevels(new Set(levels));
   }, []);
 
+  const setAllModules = useCallback((mods: string[]) => {
+    setActiveModules(new Set(mods));
+  }, []);
+
   const toggleModule = useCallback((mod: string) => {
     setActiveModules((prev) => {
       const next = new Set(prev);
@@ -953,6 +957,7 @@ export function LogViewer() {
               modules={modules}
               activeModules={activeModules}
               onToggleModule={toggleModule}
+              onSetAllModules={setAllModules}
               filteredCount={filteredLogs.length}
               totalCount={allLogs.length}
               fieldFilters={fieldFilters}
