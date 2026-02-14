@@ -8,6 +8,8 @@ import {
   X,
   Github,
   Plus,
+  Play,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { PinoLogEntry } from '@/lib/log-types';
@@ -29,7 +31,24 @@ export function LogInput({
   const [mode, setMode] = useState<'idle' | 'paste'>('idle');
   const [pasteValue, setPasteValue] = useState('');
   const [dragOver, setDragOver] = useState(false);
+  const [loadingExample, setLoadingExample] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLoadExample = useCallback(async () => {
+    setLoadingExample(true);
+    try {
+      const res = await fetch('/example.log');
+      const text = await res.text();
+      const logs = parseLogs(text);
+      if (logs.length > 0) {
+        onLogsLoaded(logs, 'example.log');
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingExample(false);
+    }
+  }, [onLogsLoaded]);
 
   const handleFile = useCallback(
     (file: File) => {
@@ -171,6 +190,20 @@ export function LogInput({
           >
             <ClipboardPaste className="h-4 w-4" />
             Paste logs
+          </Button>
+
+          <Button
+            variant="outline"
+            className="w-full h-12 gap-2"
+            onClick={handleLoadExample}
+            disabled={loadingExample}
+          >
+            {loadingExample ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            {loadingExample ? 'Loading example...' : 'Try an example'}
           </Button>
         </div>
       ) : (
