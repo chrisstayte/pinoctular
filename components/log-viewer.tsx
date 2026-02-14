@@ -32,6 +32,11 @@ import { ErrorClusters } from '@/components/error-clusters';
 import { DiffView } from '@/components/diff-view';
 import { RequestTrace } from '@/components/request-trace';
 import { KeyboardShortcuts } from '@/components/keyboard-shortcuts';
+import { StreamControls } from '@/components/stream-controls';
+import { useWatchConfig } from '@/hooks/use-watch-config';
+import { useLogStream } from '@/hooks/use-log-stream';
+import { fetchLogs, type WatchedFolder } from '@/lib/watch-api';
+import { parseLogsDetailed } from '@/lib/log-types';
 import {
   Bookmark,
   BookmarkCheck,
@@ -85,13 +90,14 @@ export function LogViewer() {
   // ─── Sources state ───────────────────────────────────────────────
   const [sources, setSources] = useState<LogSource[]>(loadCachedSources);
 
-  // Persist sources to localStorage
+  // Persist sources to localStorage (skip watched sources — they're fetched live)
   useEffect(() => {
     try {
-      if (sources.length === 0) {
+      const persistable = sources.filter((s) => !s.watched);
+      if (persistable.length === 0) {
         localStorage.removeItem(STORAGE_KEY);
       } else {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(sources));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
       }
     } catch {
       // storage full or unavailable — silently ignore
@@ -144,6 +150,40 @@ export function LogViewer() {
   const [parseDiagnostics, setParseDiagnostics] = useState<
     Record<string, ParseLogDiagnostics>
   >({});
+
+  // ─── Watch / streaming state ──────────────────────────────────
+  const watchConfig = useWatchConfig();
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [activeWatchFolder, setActiveWatchFolder] = useState<string | null>(null);
+
+  const handleNewStreamLines = useCallback(
+    (source: string, lines: string[]) => {
+      const { entries } = parseLogsDetailed(lines.join('\n'));
+      if (entries.length === 0) return;
+      setSources((prev) => {
+        // Find existing source matching the watched file
+        const watchSourceName = `watch:${activeWatchFolder}`;
+        const idx = prev.findIndex((s) => s.name === watchSourceName);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = {
+            ...updated[idx],
+            logs: [...updated[idx].logs, ...entries],
+          };
+          return updated;
+        }
+        return prev;
+      });
+    },
+    [activeWatchFolder]
+  );
+
+  const { isConnected } = useLogStream({
+    folder: activeWatchFolder,
+    enabled: isStreaming,
+    onNewLines: handleNewStreamLines,
+  });
 
   // Diff state
   const [diffSourceA, setDiffSourceA] = useState('');
@@ -339,7 +379,46 @@ export function LogViewer() {
     setTimeRange(null);
     setBookmarks(new Set());
     setParseDiagnostics({});
+    setIsStreaming(false);
+    setAutoScroll(true);
+    setActiveWatchFolder(null);
   }, []);
+
+  const handleWatchFolderSelect = useCallback(
+    async (folder: WatchedFolder) => {
+      const result = await fetchLogs(folder.name, 10000);
+      if (!result) return;
+
+      const allEntries: PinoLogEntry[] = [];
+      for (const file of result.files) {
+        const { entries } = parseLogsDetailed(file.lines.join('\n'));
+        allEntries.push(...entries);
+      }
+
+      const sourceName = `watch:${folder.name}`;
+      setSources([{ name: sourceName, logs: allEntries, watched: { folder: folder.name, name: folder.name } }]);
+      setSearch('');
+      setIsRegex(false);
+      setActiveLevels(new Set(DEFAULT_LEVELS));
+      const mods = new Set<string>();
+      for (const log of allEntries) {
+        if (log.module) mods.add(log.module as string);
+      }
+      setActiveModules(mods);
+      setActiveSources(new Set([sourceName]));
+      setSortField('time');
+      setSortDirection('asc');
+      setFieldFilters([]);
+      setTimeRange(null);
+      setBookmarks(new Set());
+      setShowBookmarksOnly(false);
+      setContextLines(0);
+      setViewMode('table');
+      setActiveWatchFolder(folder.name);
+      setAutoScroll(true);
+    },
+    []
+  );
 
   const toggleLevel = useCallback((level: LogLevel) => {
     setActiveLevels((prev) => {
@@ -839,6 +918,9 @@ export function LogViewer() {
           onClear={handleClear}
           onAddSource={handleAddSource}
           onDiagnostics={handleDiagnostics}
+          watchAvailable={watchConfig.available}
+          watchFolders={watchConfig.folders}
+          onWatchFolderSelect={handleWatchFolderSelect}
         />
       ) : (
         <>
@@ -965,6 +1047,17 @@ export function LogViewer() {
               <option value={10}>+/- 10 lines</option>
             </select>
 
+            {/* Stream controls (watched folder only) */}
+            {activeWatchFolder && (
+              <StreamControls
+                isStreaming={isStreaming}
+                onStreamToggle={() => setIsStreaming((v) => !v)}
+                autoScroll={autoScroll}
+                onAutoScrollToggle={() => setAutoScroll((v) => !v)}
+                isConnected={isConnected}
+              />
+            )}
+
             {/* Keyboard shortcuts button */}
             <Button
               variant="ghost"
@@ -1048,6 +1141,8 @@ export function LogViewer() {
               sourceNames={sourceNames}
               jumpToKey={jumpToKey}
               onJumpHandled={() => setJumpToKey(null)}
+              autoScroll={isStreaming && autoScroll}
+              onUserScroll={() => setAutoScroll(false)}
             />
           )}
 

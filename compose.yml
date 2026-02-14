@@ -5,3 +5,8 @@ services:
     ports:
       - 1738:80
     restart: unless-stopped
+    # Uncomment below to enable watched folders
+    # environment:
+    #   - WATCH_PATHS=[{"name":"My App","path":"/logs/myapp"}]
+    # volumes:
+    #   - ./logs/myapp:/logs/myapp

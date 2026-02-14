@@ -43,6 +43,8 @@ interface LogTableProps {
   sourceNames: string[];
   jumpToKey: string | null;
   onJumpHandled: () => void;
+  autoScroll?: boolean;
+  onUserScroll?: () => void;
 }
 
 function getEntryKey(entry: SourcedLogEntry): string {
@@ -383,6 +385,8 @@ export const LogTable = memo(function LogTable({
   sourceNames,
   jumpToKey,
   onJumpHandled,
+  autoScroll,
+  onUserScroll,
 }: LogTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const showSource = sourceNames.length > 1;
@@ -493,6 +497,38 @@ export const LogTable = memo(function LogTable({
       onJumpHandled();
     }
   }, [jumpToKey, displayLogs, virtualizer, onJumpHandled, onSelectRow]);
+
+  // Auto-scroll to bottom when streaming
+  const prevLogCountRef = useRef(displayLogs.length);
+  useEffect(() => {
+    if (autoScroll && displayLogs.length > prevLogCountRef.current) {
+      virtualizer.scrollToIndex(displayLogs.length - 1, { align: 'end' });
+    }
+    prevLogCountRef.current = displayLogs.length;
+  }, [autoScroll, displayLogs.length, virtualizer]);
+
+  // Detect user scroll-up to disable auto-scroll
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !onUserScroll) return;
+
+    let ticking = false;
+    const handleScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        if (!autoScroll) return;
+        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (distanceFromBottom > 100) {
+          onUserScroll();
+        }
+      });
+    };
+
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, [autoScroll, onUserScroll]);
 
   if (displayLogs.length === 0) {
     return (
