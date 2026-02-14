@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbo",
+    "dev:watch": "WATCH_PATHS=\"[{\\\"name\\\":\\\"Test Logs\\\",\\\"path\\\":\\\"$PWD/test-logs\\\"}]\" npm --prefix server run start & next dev --turbo",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

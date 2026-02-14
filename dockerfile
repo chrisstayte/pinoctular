@@ -1,4 +1,5 @@
-FROM node:22-alpine AS build
+# Stage 1: Build the frontend
+FROM node:22-alpine AS frontend-build
 
 WORKDIR /app
 
@@ -10,17 +11,33 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
-FROM nginx:alpine
+# Stage 2: Install server dependencies
+FROM node:22-alpine AS server-build
 
-COPY --from=build /app/out /usr/share/nginx/html
+WORKDIR /server
 
-RUN printf 'server {\n\
-    listen 80;\n\
-    root /usr/share/nginx/html;\n\
-    index index.html;\n\
-    location / {\n\
-        try_files $uri $uri.html $uri/ /index.html;\n\
-    }\n\
-}\n' > /etc/nginx/conf.d/default.conf
+COPY server/package.json server/package-lock.json ./
+RUN npm ci --omit=dev
+
+# Stage 3: Final runtime image
+FROM node:22-alpine
+
+RUN apk add --no-cache nginx
+
+# Copy frontend static files
+COPY --from=frontend-build /app/out /usr/share/nginx/html
+
+# Copy API server source and dependencies
+COPY --from=server-build /server/node_modules /app/server/node_modules
+COPY server/*.ts /app/server/
+
+# Copy nginx config
+COPY docker/nginx.conf /etc/nginx/http.d/default.conf
+
+# Copy entrypoint
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 80
+
+ENTRYPOINT ["/entrypoint.sh"]

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import {
   type PinoLogEntry,
@@ -32,6 +32,11 @@ import { ErrorClusters } from '@/components/error-clusters';
 import { DiffView } from '@/components/diff-view';
 import { RequestTrace } from '@/components/request-trace';
 import { KeyboardShortcuts } from '@/components/keyboard-shortcuts';
+import { StreamControls } from '@/components/stream-controls';
+import { useWatchConfig } from '@/hooks/use-watch-config';
+import { useLogStream } from '@/hooks/use-log-stream';
+import { fetchLogs, type WatchedFolder } from '@/lib/watch-api';
+import { parseLogsDetailed } from '@/lib/log-types';
 import {
   Bookmark,
   BookmarkCheck,
@@ -85,13 +90,14 @@ export function LogViewer() {
   // ─── Sources state ───────────────────────────────────────────────
   const [sources, setSources] = useState<LogSource[]>(loadCachedSources);
 
-  // Persist sources to localStorage
+  // Persist sources to localStorage (skip watched sources — they're fetched live)
   useEffect(() => {
     try {
-      if (sources.length === 0) {
+      const persistable = sources.filter((s) => !s.watched);
+      if (persistable.length === 0) {
         localStorage.removeItem(STORAGE_KEY);
       } else {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(sources));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
       }
     } catch {
       // storage full or unavailable — silently ignore
@@ -144,6 +150,107 @@ export function LogViewer() {
   const [parseDiagnostics, setParseDiagnostics] = useState<
     Record<string, ParseLogDiagnostics>
   >({});
+
+  // ─── Watch / streaming state ──────────────────────────────────
+  const watchConfig = useWatchConfig();
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [activeWatchFolder, setActiveWatchFolder] = useState<string | null>(null);
+  const knownFilesRef = useRef<Set<string>>(new Set());
+
+  const handleNewStreamLines = useCallback(
+    (source: string, lines: string[]) => {
+      const { entries } = parseLogsDetailed(lines.join('\n'));
+      if (entries.length === 0) return;
+      setSources((prev) => {
+        // Find existing source matching the watched file
+        const watchSourceName = `watch:${activeWatchFolder}`;
+        const idx = prev.findIndex((s) => s.name === watchSourceName);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = {
+            ...updated[idx],
+            logs: [...updated[idx].logs, ...entries],
+          };
+          return updated;
+        }
+        return prev;
+      });
+    },
+    [activeWatchFolder]
+  );
+
+  const handleFoldersUpdated = useCallback(
+    async (folders: import('@/lib/watch-api').WatchedFolder[]) => {
+      if (!activeWatchFolder) return;
+      const folder = folders.find((f) => f.name === activeWatchFolder);
+      if (!folder) return;
+
+      const currentFiles = new Set(folder.files.map((f) => f.name));
+      const removedFiles = [...knownFilesRef.current].filter((f) => !currentFiles.has(f));
+      const newFiles = folder.files.filter((f) => !knownFilesRef.current.has(f.name));
+
+      if (newFiles.length === 0 && removedFiles.length === 0) return;
+
+      if (removedFiles.length > 0) {
+        // Files were removed — re-fetch all logs for the folder since
+        // entries aren't tagged by source file
+        knownFilesRef.current = currentFiles;
+        const result = await fetchLogs(activeWatchFolder, 10000);
+        if (!result) return;
+        const allEntries: PinoLogEntry[] = [];
+        for (const file of result.files) {
+          const { entries } = parseLogsDetailed(file.lines.join('\n'));
+          allEntries.push(...entries);
+        }
+        const sourceName = `watch:${activeWatchFolder}`;
+        setSources((prev) => {
+          const idx = prev.findIndex((s) => s.name === sourceName);
+          if (idx >= 0) {
+            const updated = [...prev];
+            updated[idx] = { ...updated[idx], logs: allEntries };
+            return updated;
+          }
+          return prev;
+        });
+        return;
+      }
+
+      // Only new files — fetch just those
+      for (const f of newFiles) {
+        knownFilesRef.current.add(f.name);
+      }
+      for (const file of newFiles) {
+        const result = await fetchLogs(activeWatchFolder, 10000, file.name);
+        if (!result) continue;
+        for (const fileData of result.files) {
+          const { entries } = parseLogsDetailed(fileData.lines.join('\n'));
+          if (entries.length === 0) continue;
+          setSources((prev) => {
+            const watchSourceName = `watch:${activeWatchFolder}`;
+            const idx = prev.findIndex((s) => s.name === watchSourceName);
+            if (idx >= 0) {
+              const updated = [...prev];
+              updated[idx] = {
+                ...updated[idx],
+                logs: [...updated[idx].logs, ...entries],
+              };
+              return updated;
+            }
+            return prev;
+          });
+        }
+      }
+    },
+    [activeWatchFolder]
+  );
+
+  // Always stream when a watched folder is active
+  const { isConnected } = useLogStream({
+    folder: activeWatchFolder,
+    enabled: activeWatchFolder !== null,
+    onNewLines: handleNewStreamLines,
+    onFoldersUpdated: handleFoldersUpdated,
+  });
 
   // Diff state
   const [diffSourceA, setDiffSourceA] = useState('');
@@ -339,7 +446,48 @@ export function LogViewer() {
     setTimeRange(null);
     setBookmarks(new Set());
     setParseDiagnostics({});
+    setAutoScroll(true);
+    setActiveWatchFolder(null);
   }, []);
+
+  const handleWatchFolderSelect = useCallback(
+    async (folder: WatchedFolder) => {
+      const result = await fetchLogs(folder.name, 10000);
+      if (!result) return;
+
+      const allEntries: PinoLogEntry[] = [];
+      for (const file of result.files) {
+        const { entries } = parseLogsDetailed(file.lines.join('\n'));
+        allEntries.push(...entries);
+      }
+
+      // Track known files so we can detect new ones via WebSocket
+      knownFilesRef.current = new Set(folder.files.map((f) => f.name));
+
+      const sourceName = `watch:${folder.name}`;
+      setSources([{ name: sourceName, logs: allEntries, watched: { folder: folder.name, name: folder.name } }]);
+      setSearch('');
+      setIsRegex(false);
+      setActiveLevels(new Set(DEFAULT_LEVELS));
+      const mods = new Set<string>();
+      for (const log of allEntries) {
+        if (log.module) mods.add(log.module as string);
+      }
+      setActiveModules(mods);
+      setActiveSources(new Set([sourceName]));
+      setSortField('time');
+      setSortDirection('asc');
+      setFieldFilters([]);
+      setTimeRange(null);
+      setBookmarks(new Set());
+      setShowBookmarksOnly(false);
+      setContextLines(0);
+      setViewMode('table');
+      setActiveWatchFolder(folder.name);
+      setAutoScroll(true);
+    },
+    []
+  );
 
   const toggleLevel = useCallback((level: LogLevel) => {
     setActiveLevels((prev) => {
@@ -839,6 +987,9 @@ export function LogViewer() {
           onClear={handleClear}
           onAddSource={handleAddSource}
           onDiagnostics={handleDiagnostics}
+          watchAvailable={watchConfig.available}
+          watchFolders={watchConfig.folders}
+          onWatchFolderSelect={handleWatchFolderSelect}
         />
       ) : (
         <>
@@ -965,6 +1116,15 @@ export function LogViewer() {
               <option value={10}>+/- 10 lines</option>
             </select>
 
+            {/* Stream controls (watched folder only) */}
+            {activeWatchFolder && (
+              <StreamControls
+                isConnected={isConnected}
+                autoScroll={autoScroll}
+                onAutoScrollToggle={() => setAutoScroll((v) => !v)}
+              />
+            )}
+
             {/* Keyboard shortcuts button */}
             <Button
               variant="ghost"
@@ -1048,6 +1208,8 @@ export function LogViewer() {
               sourceNames={sourceNames}
               jumpToKey={jumpToKey}
               onJumpHandled={() => setJumpToKey(null)}
+              autoScroll={activeWatchFolder !== null && autoScroll}
+              onUserScroll={() => setAutoScroll(false)}
             />
           )}
 

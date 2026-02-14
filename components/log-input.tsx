@@ -11,10 +11,13 @@ import {
   Play,
   Loader2,
   AlertCircle,
+  Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ParseLogDiagnostics, PinoLogEntry } from '@/lib/log-types';
 import { parseLogsDetailed } from '@/lib/log-types';
+import { WatchedFolderCard } from '@/components/watched-folder-card';
+import type { WatchedFolder } from '@/lib/watch-api';
 
 interface LogInputProps {
   onLogsLoaded: (logs: PinoLogEntry[], source: string) => void;
@@ -22,6 +25,9 @@ interface LogInputProps {
   onClear: () => void;
   onAddSource?: (logs: PinoLogEntry[], source: string) => void;
   onDiagnostics?: (source: string, diagnostics: ParseLogDiagnostics) => void;
+  watchAvailable?: boolean;
+  watchFolders?: WatchedFolder[];
+  onWatchFolderSelect?: (folder: WatchedFolder) => void;
 }
 
 function parseFileText(text: string) {
@@ -34,6 +40,9 @@ export function LogInput({
   onClear,
   onAddSource,
   onDiagnostics,
+  watchAvailable,
+  watchFolders,
+  onWatchFolderSelect,
 }: LogInputProps) {
   const [mode, setMode] = useState<'idle' | 'paste'>('idle');
   const [pasteValue, setPasteValue] = useState('');
@@ -139,6 +148,31 @@ export function LogInput({
           compare sources.
         </p>
       </div>
+
+      {watchAvailable && watchFolders && watchFolders.length > 0 && onWatchFolderSelect && (
+        <div className="w-full max-w-lg space-y-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Eye className="h-3.5 w-3.5" />
+            <span className="uppercase tracking-wider font-medium">Watched Folders</span>
+          </div>
+          <div className="grid gap-2">
+            {watchFolders.map((folder) => (
+              <WatchedFolderCard
+                key={folder.name}
+                folder={folder}
+                onSelect={onWatchFolderSelect}
+              />
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">
+              or
+            </span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+        </div>
+      )}
 
       {parseWarning && (
         <div className="w-full max-w-2xl rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 flex items-start gap-2">

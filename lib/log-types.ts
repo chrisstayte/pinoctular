@@ -165,6 +165,7 @@ export const CORE_FIELDS = ['level', 'time', 'pid', 'hostname', 'msg', 'module']
 export interface LogSource {
   name: string
   logs: PinoLogEntry[]
+  watched?: { folder: string; name: string }
 }
 
 export function tagLogsWithSource(logs: PinoLogEntry[], source: string): SourcedLogEntry[] {
