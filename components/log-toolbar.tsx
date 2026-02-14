@@ -16,6 +16,7 @@ interface LogToolbarProps {
   onSearchChange: (value: string) => void
   activeLevels: Set<LogLevel>
   onToggleLevel: (level: LogLevel) => void
+  onSetAllLevels: (levels: LogLevel[]) => void
   modules: string[]
   activeModules: Set<string>
   onToggleModule: (mod: string) => void
@@ -28,6 +29,7 @@ export function LogToolbar({
   onSearchChange,
   activeLevels,
   onToggleLevel,
+  onSetAllLevels,
   modules,
   activeModules,
   onToggleModule,
@@ -70,6 +72,25 @@ export function LogToolbar({
       {/* Filter row */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider mr-1">Level</span>
+        <div className="flex items-center gap-0.5 mr-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`h-5 text-[10px] px-1.5 ${allLevelsActive ? "text-foreground" : "text-muted-foreground"}`}
+            onClick={() => onSetAllLevels([...ALL_LEVELS])}
+          >
+            All
+          </Button>
+          <span className="text-muted-foreground/30 text-[10px]">/</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`h-5 text-[10px] px-1.5 ${activeLevels.size === 0 ? "text-foreground" : "text-muted-foreground"}`}
+            onClick={() => onSetAllLevels([])}
+          >
+            None
+          </Button>
+        </div>
         {ALL_LEVELS.map((level) => {
           const active = activeLevels.has(level)
           return (
@@ -87,16 +108,6 @@ export function LogToolbar({
             </button>
           )
         })}
-        {!allLevelsActive && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-5 text-[10px] text-muted-foreground px-1.5"
-            onClick={() => ALL_LEVELS.forEach((l) => { if (!activeLevels.has(l)) onToggleLevel(l) })}
-          >
-            Show all
-          </Button>
-        )}
 
         {modules.length > 1 && (
           <>

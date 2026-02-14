@@ -70,6 +70,10 @@ export function LogViewer() {
     })
   }, [])
 
+  const setAllLevels = useCallback((levels: LogLevel[]) => {
+    setActiveLevels(new Set(levels))
+  }, [])
+
   const toggleModule = useCallback((mod: string) => {
     setActiveModules((prev) => {
       const next = new Set(prev)
@@ -187,6 +191,7 @@ export function LogViewer() {
             onSearchChange={setSearch}
             activeLevels={activeLevels}
             onToggleLevel={toggleLevel}
+            onSetAllLevels={setAllLevels}
             modules={modules}
             activeModules={activeModules}
             onToggleModule={toggleModule}

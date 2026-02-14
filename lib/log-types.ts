@@ -47,12 +47,12 @@ export const LEVEL_BG_COLORS: Record<LogLevel, string> = {
 }
 
 export const LEVEL_ROW_COLORS: Record<LogLevel, string> = {
-  trace: '',
-  debug: '',
-  info: '',
-  warn: 'bg-log-warn/[0.03]',
-  error: 'bg-log-error/[0.05]',
-  fatal: 'bg-log-fatal/[0.08]',
+  trace: 'bg-log-trace/[0.03]',
+  debug: 'bg-log-debug/[0.03]',
+  info: 'bg-log-info/[0.03]',
+  warn: 'bg-log-warn/[0.05]',
+  error: 'bg-log-error/[0.07]',
+  fatal: 'bg-log-fatal/[0.10]',
 }
 
 export function getLevelName(level: number): LogLevel {
