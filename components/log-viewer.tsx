@@ -66,9 +66,37 @@ const DEFAULT_LEVELS: LogLevel[] = [
   'fatal',
 ];
 
+const STORAGE_KEY = 'pinoctular:sources';
+
+function loadCachedSources(): LogSource[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+  } catch {
+    // corrupted data — ignore
+  }
+  return [];
+}
+
 export function LogViewer() {
   // ─── Sources state ───────────────────────────────────────────────
-  const [sources, setSources] = useState<LogSource[]>([]);
+  const [sources, setSources] = useState<LogSource[]>(loadCachedSources);
+
+  // Persist sources to localStorage
+  useEffect(() => {
+    try {
+      if (sources.length === 0) {
+        localStorage.removeItem(STORAGE_KEY);
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(sources));
+      }
+    } catch {
+      // storage full or unavailable — silently ignore
+    }
+  }, [sources]);
 
   // ─── Merged log entries with source tags ─────────────────────────
   const allLogs = useMemo<SourcedLogEntry[]>(() => {
@@ -84,8 +112,18 @@ export function LogViewer() {
   const [activeLevels, setActiveLevels] = useState<Set<LogLevel>>(
     new Set(DEFAULT_LEVELS)
   );
-  const [activeModules, setActiveModules] = useState<Set<string>>(new Set());
-  const [activeSources, setActiveSources] = useState<Set<string>>(new Set());
+  const [activeModules, setActiveModules] = useState<Set<string>>(() => {
+    const mods = new Set<string>();
+    for (const src of sources) {
+      for (const log of src.logs) {
+        if (log.module) mods.add(log.module as string);
+      }
+    }
+    return mods;
+  });
+  const [activeSources, setActiveSources] = useState<Set<string>>(
+    () => new Set(sources.map((s) => s.name))
+  );
   const [fieldFilters, setFieldFilters] = useState<FieldFilter[]>([]);
   const [timeRange, setTimeRange] = useState<[number, number] | null>(null);
 
