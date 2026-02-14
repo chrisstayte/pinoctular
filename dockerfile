@@ -31,9 +31,6 @@ COPY --from=frontend-build /app/out /usr/share/nginx/html
 COPY --from=server-build /server/node_modules /app/server/node_modules
 COPY server/*.ts /app/server/
 
-# Install tsx globally for running TypeScript
-RUN npm install -g tsx
-
 # Copy nginx config
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
 

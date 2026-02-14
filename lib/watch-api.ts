@@ -26,9 +26,49 @@ export type StreamMessage =
   | { type: 'error'; message: string }
   | { type: 'pong' }
 
-export async function checkWatchAvailable(): Promise<HealthResponse | null> {
+// Resolved API base URL — detected once, cached for the session.
+// In Docker: nginx proxies /api/* to the sidecar, so same-origin works ('').
+// In dev: the API server runs on port 3001, so we fall back to that.
+// Not cached when unavailable — allows retry if the server starts late.
+let _apiBase: string | undefined = undefined
+
+async function getApiBase(): Promise<string | null> {
+  if (_apiBase !== undefined) {
+    return _apiBase
+  }
+
+  // Try same-origin first (Docker / production)
   try {
     const res = await fetch('/api/watch/health')
+    if (res.ok) {
+      _apiBase = ''
+      return ''
+    }
+  } catch {
+    // not available at same origin
+  }
+
+  // Try localhost:3001 (dev mode)
+  try {
+    const res = await fetch('http://localhost:3001/api/watch/health')
+    if (res.ok) {
+      _apiBase = 'http://localhost:3001'
+      return _apiBase
+    }
+  } catch {
+    // not available
+  }
+
+  // Don't cache failure — allow retry on next call
+  return null
+}
+
+export async function checkWatchAvailable(): Promise<HealthResponse | null> {
+  const base = await getApiBase()
+  if (base === null) return null
+
+  try {
+    const res = await fetch(`${base}/api/watch/health`)
     if (!res.ok) return null
     return (await res.json()) as HealthResponse
   } catch {
@@ -41,10 +81,13 @@ export async function fetchLogs(
   tail = 10000,
   file?: string
 ): Promise<LogsResponse | null> {
+  const base = await getApiBase()
+  if (base === null) return null
+
   try {
     const params = new URLSearchParams({ folder: folderName, tail: String(tail) })
     if (file) params.set('file', file)
-    const res = await fetch(`/api/watch/logs?${params}`)
+    const res = await fetch(`${base}/api/watch/logs?${params}`)
     if (!res.ok) return null
     return (await res.json()) as LogsResponse
   } catch {
@@ -62,8 +105,18 @@ export interface LogStream {
 }
 
 export function createLogStream(): LogStream {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const ws = new WebSocket(`${protocol}//${window.location.host}/api/stream`)
+  let wsUrl: string
+  if (_apiBase && _apiBase.startsWith('http')) {
+    // Dev mode — API is on a different port
+    const url = new URL(_apiBase)
+    const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+    wsUrl = `${protocol}//${url.host}/api/stream`
+  } else {
+    // Production — same origin via nginx proxy
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    wsUrl = `${protocol}//${window.location.host}/api/stream`
+  }
+  const ws = new WebSocket(wsUrl)
 
   let messageHandler: ((msg: StreamMessage) => void) | null = null
   let closeHandler: (() => void) | null = null

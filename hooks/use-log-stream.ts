@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { createLogStream, type StreamMessage, type LogStream } from '@/lib/watch-api'
+import { createLogStream, type StreamMessage, type LogStream, type WatchedFolder } from '@/lib/watch-api'
 
 interface UseLogStreamOptions {
   folder: string | null
   enabled: boolean
   onNewLines: (source: string, lines: string[]) => void
+  onFoldersUpdated?: (folders: WatchedFolder[]) => void
 }
 
 interface UseLogStreamResult {
@@ -14,7 +15,7 @@ interface UseLogStreamResult {
   error: string | null
 }
 
-export function useLogStream({ folder, enabled, onNewLines }: UseLogStreamOptions): UseLogStreamResult {
+export function useLogStream({ folder, enabled, onNewLines, onFoldersUpdated }: UseLogStreamOptions): UseLogStreamResult {
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const streamRef = useRef<LogStream | null>(null)
@@ -22,6 +23,8 @@ export function useLogStream({ folder, enabled, onNewLines }: UseLogStreamOption
   const retriesRef = useRef(0)
   const onNewLinesRef = useRef(onNewLines)
   onNewLinesRef.current = onNewLines
+  const onFoldersUpdatedRef = useRef(onFoldersUpdated)
+  onFoldersUpdatedRef.current = onFoldersUpdated
 
   const cleanup = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -52,11 +55,16 @@ export function useLogStream({ folder, enabled, onNewLines }: UseLogStreamOption
           setIsConnected(true)
           setError(null)
           retriesRef.current = 0
-          stream.subscribe(folder)
+        } else if (msg.type === 'folders') {
+          onFoldersUpdatedRef.current?.(msg.folders)
         } else if (msg.type === 'error') {
           setError(msg.message)
         }
       })
+
+      // Subscribe as soon as the connection opens — don't wait for pong
+      // because the pong may arrive before the onMessage handler is registered
+      stream.subscribe(folder)
 
       stream.onClose(() => {
         setIsConnected(false)

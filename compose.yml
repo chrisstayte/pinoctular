@@ -7,6 +7,6 @@ services:
     restart: unless-stopped
     # Uncomment below to enable watched folders
     # environment:
-    #   - WATCH_PATHS=[{"name":"My App","path":"/logs/myapp"}]
+    #   - WATCH_PATHS=[{"name":"My App","path":"/test-logs"}]
     # volumes:
-    #   - ./logs/myapp:/logs/myapp
+    #   - ./test-logs:/test-logs

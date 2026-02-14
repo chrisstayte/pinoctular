@@ -498,13 +498,19 @@ export const LogTable = memo(function LogTable({
     }
   }, [jumpToKey, displayLogs, virtualizer, onJumpHandled, onSelectRow]);
 
-  // Auto-scroll to bottom when streaming
+  // Auto-scroll to bottom when streaming or when Follow is toggled on
   const prevLogCountRef = useRef(displayLogs.length);
+  const prevAutoScrollRef = useRef(autoScroll);
   useEffect(() => {
-    if (autoScroll && displayLogs.length > prevLogCountRef.current) {
+    const justEnabled = autoScroll && !prevAutoScrollRef.current;
+    const newLogsArrived = autoScroll && displayLogs.length > prevLogCountRef.current;
+
+    if (justEnabled || newLogsArrived) {
       virtualizer.scrollToIndex(displayLogs.length - 1, { align: 'end' });
     }
+
     prevLogCountRef.current = displayLogs.length;
+    prevAutoScrollRef.current = autoScroll;
   }, [autoScroll, displayLogs.length, virtualizer]);
 
   // Detect user scroll-up to disable auto-scroll
