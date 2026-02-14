@@ -128,6 +128,14 @@ export function parseLogsDetailed(raw: string): ParseLogsResult {
     try {
       const parsed = JSON.parse(line)
       if (typeof parsed === 'object' && parsed !== null && 'level' in parsed && 'time' in parsed) {
+        // Normalize time to epoch ms — handles ISO strings, epoch seconds, etc.
+        if (typeof parsed.time === 'string') {
+          const ms = new Date(parsed.time).getTime()
+          if (Number.isFinite(ms)) parsed.time = ms
+        } else if (typeof parsed.time === 'number' && parsed.time < 1e12) {
+          // Likely epoch seconds — convert to ms
+          parsed.time = parsed.time * 1000
+        }
         entries.push(parsed as PinoLogEntry)
       } else if (errors.length < 5) {
         errors.push(`Line ${index + 1}: missing required fields (level/time)`)
@@ -308,20 +316,22 @@ export interface TimelineBucket {
 }
 
 export function buildTimeline(logs: SourcedLogEntry[], bucketCount: number = 60): TimelineBucket[] {
-  if (logs.length === 0) return []
+  // Filter to entries with valid numeric timestamps to avoid NaN index crashes
+  const valid = logs.filter((e) => Number.isFinite(e.time))
+  if (valid.length === 0) return []
 
-  let minTime = logs[0].time
-  let maxTime = logs[0].time
-  for (let i = 1; i < logs.length; i++) {
-    const time = logs[i].time
+  let minTime = valid[0].time
+  let maxTime = valid[0].time
+  for (let i = 1; i < valid.length; i++) {
+    const time = valid[i].time
     if (time < minTime) minTime = time
     if (time > maxTime) maxTime = time
   }
   const range = maxTime - minTime
   if (range === 0) {
     const counts = { trace: 0, debug: 0, info: 0, warn: 0, error: 0, fatal: 0 }
-    for (const e of logs) counts[getLevelName(e.level)]++
-    return [{ startTime: minTime, endTime: maxTime, counts, total: logs.length }]
+    for (const e of valid) counts[getLevelName(e.level)]++
+    return [{ startTime: minTime, endTime: maxTime, counts, total: valid.length }]
   }
 
   const bucketSize = range / bucketCount
@@ -332,7 +342,7 @@ export function buildTimeline(logs: SourcedLogEntry[], bucketCount: number = 60)
     total: 0,
   }))
 
-  for (const entry of logs) {
+  for (const entry of valid) {
     const idx = Math.min(Math.floor((entry.time - minTime) / bucketSize), bucketCount - 1)
     const level = getLevelName(entry.level)
     buckets[idx].counts[level]++
