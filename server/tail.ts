@@ -6,8 +6,8 @@ interface TailState {
 
 const fileStates = new Map<string, TailState>()
 
-export function getFileOffset(filePath: string): number {
-  return fileStates.get(filePath)?.offset ?? 0
+export function getFileOffset(filePath: string): number | undefined {
+  return fileStates.get(filePath)?.offset
 }
 
 export function setFileOffset(filePath: string, offset: number): void {

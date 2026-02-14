@@ -3,7 +3,7 @@ import type { Server as HttpServer } from 'node:http'
 import * as path from 'node:path'
 import type { FolderWatcher } from './watcher.js'
 import type { ClientMessage, ServerMessage } from './types.js'
-import { readNewLines, setFileOffset } from './tail.js'
+import { readNewLines, getFileOffset, setFileOffset } from './tail.js'
 import * as fs from 'node:fs'
 
 interface ClientState {
@@ -41,9 +41,12 @@ export function setupWebSocket(server: HttpServer, watcher: FolderWatcher): void
 
           state.subscribedFolder = msg.folder
 
-          // Initialize tail offsets for all files in this folder to current end
+          // Initialize tail offsets for files that haven't been seen yet.
+          // Files already tracked (e.g. from a prior HTTP /api/watch/logs fetch)
+          // keep their existing offset to avoid re-reading data the client already has.
           for (const file of folder.files) {
             const filePath = path.join(folder.path, file.name)
+            if (getFileOffset(filePath) !== undefined) continue
             try {
               const stat = fs.statSync(filePath)
               setFileOffset(filePath, stat.size)
@@ -94,7 +97,8 @@ export function setupWebSocket(server: HttpServer, watcher: FolderWatcher): void
 
   // Forward new file events
   watcher.on('add', (folderName: string, filePath: string) => {
-    // Initialize offset for the new file
+    // Initialize offset for the new file (only if not already tracked)
+    if (getFileOffset(filePath) !== undefined) return
     try {
       const stat = fs.statSync(filePath)
       setFileOffset(filePath, stat.size)
