@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
+import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ChevronDown,
@@ -12,11 +12,9 @@ import {
   Check,
   Bookmark,
   BookmarkCheck,
-  List,
 } from 'lucide-react';
 import {
   type SourcedLogEntry,
-  type LogLevel,
   type SortField,
   type SortDirection,
   getLevelName,
@@ -48,7 +46,7 @@ interface LogTableProps {
 }
 
 function getEntryKey(entry: SourcedLogEntry): string {
-  return `${entry.__source}:${entry.__sourceIndex}`;
+  return entry.__key;
 }
 
 function SortIcon({
@@ -102,6 +100,7 @@ const LogRow = memo(function LogRow({
   onSelectRow,
   onToggleBookmark,
   showSource,
+  sourceColorClass,
   virtualIndex,
   measureRef,
 }: {
@@ -114,6 +113,7 @@ const LogRow = memo(function LogRow({
   onSelectRow: (key: string) => void;
   onToggleBookmark: (key: string) => void;
   showSource: boolean;
+  sourceColorClass: string;
   virtualIndex: number;
   measureRef: (node: HTMLTableSectionElement | null) => void;
 }) {
@@ -132,6 +132,8 @@ const LogRow = memo(function LogRow({
     const clean = { ...entry } as Record<string, unknown>;
     delete clean.__source;
     delete clean.__sourceIndex;
+    delete clean.__key;
+    delete clean.__searchText;
     navigator.clipboard.writeText(JSON.stringify(clean, null, 2));
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
@@ -219,7 +221,7 @@ const LogRow = memo(function LogRow({
         {showSource && (
           <td className="px-2 py-1.5 w-24">
             <span
-              className={`text-[10px] font-mono truncate ${getSourceColor(0)}`}
+              className={`text-[10px] font-mono truncate ${sourceColorClass}`}
             >
               {entry.__source}
             </span>
@@ -339,6 +341,8 @@ const LogRow = memo(function LogRow({
                     const clean = { ...entry } as Record<string, unknown>;
                     delete clean.__source;
                     delete clean.__sourceIndex;
+                    delete clean.__key;
+                    delete clean.__searchText;
                     return clean;
                   })()}
                 />
@@ -370,6 +374,14 @@ export const LogTable = memo(function LogTable({
   const scrollRef = useRef<HTMLDivElement>(null);
   const showSource = sourceNames.length > 1;
 
+  const sourceColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    sourceNames.forEach((sourceName, index) => {
+      map.set(sourceName, getSourceColor(index));
+    });
+    return map;
+  }, [sourceNames]);
+
   // Build display list with context lines
   const displayLogs = useMemo(() => {
     if (!showBookmarksOnly && contextLines === 0) return logs;
@@ -383,29 +395,35 @@ export const LogTable = memo(function LogTable({
       const filteredKeys = new Set(logs.map(getEntryKey));
       const contextKeys = new Set<string>();
 
-      for (const entry of logs) {
-        // Find this entry's position in allLogs
-        const sourceEntries = allLogs.filter(
-          (e) => e.__source === entry.__source
-        );
-        const idx = sourceEntries.findIndex(
-          (e) => e.__sourceIndex === entry.__sourceIndex
-        );
-        if (idx === -1) continue;
+      const sourceIndexMap = new Map<string, SourcedLogEntry[]>();
+      const positionByKey = new Map<string, number>();
 
-        for (
-          let i = Math.max(0, idx - contextLines);
-          i <= Math.min(sourceEntries.length - 1, idx + contextLines);
-          i++
-        ) {
-          contextKeys.add(getEntryKey(sourceEntries[i]));
+      for (const entry of allLogs) {
+        const sourceEntries = sourceIndexMap.get(entry.__source);
+        if (sourceEntries) {
+          positionByKey.set(entry.__key, sourceEntries.length);
+          sourceEntries.push(entry);
+        } else {
+          sourceIndexMap.set(entry.__source, [entry]);
+          positionByKey.set(entry.__key, 0);
+        }
+      }
+
+      for (const entry of logs) {
+        const sourceEntries = sourceIndexMap.get(entry.__source);
+        const idx = positionByKey.get(entry.__key);
+        if (!sourceEntries || idx === undefined) continue;
+
+        const start = Math.max(0, idx - contextLines);
+        const end = Math.min(sourceEntries.length - 1, idx + contextLines);
+
+        for (let i = start; i <= end; i++) {
+          contextKeys.add(sourceEntries[i].__key);
         }
       }
 
       return allLogs.filter(
-        (entry) =>
-          filteredKeys.has(getEntryKey(entry)) ||
-          contextKeys.has(getEntryKey(entry))
+        (entry) => filteredKeys.has(entry.__key) || contextKeys.has(entry.__key)
       );
     }
 
@@ -571,6 +589,7 @@ export const LogTable = memo(function LogTable({
               onSelectRow={onSelectRow}
               onToggleBookmark={onToggleBookmark}
               showSource={showSource}
+              sourceColorClass={sourceColorMap.get(entry.__source) ?? getSourceColor(0)}
               virtualIndex={virtualRow.index}
               measureRef={virtualizer.measureElement}
             />

@@ -12,6 +12,8 @@ export interface PinoLogEntry {
 export interface SourcedLogEntry extends PinoLogEntry {
   __source: string
   __sourceIndex: number
+  __key: string
+  __searchText: string
 }
 
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
@@ -105,22 +107,52 @@ export function formatFullTimestamp(time: number): string {
   })
 }
 
-export function parseLogs(raw: string): PinoLogEntry[] {
+export interface ParseLogDiagnostics {
+  totalLines: number
+  parsedLines: number
+  skippedLines: number
+  errors: string[]
+}
+
+export interface ParseLogsResult {
+  entries: PinoLogEntry[]
+  diagnostics: ParseLogDiagnostics
+}
+
+export function parseLogsDetailed(raw: string): ParseLogsResult {
   const lines = raw.split('\n').filter((line) => line.trim())
   const entries: PinoLogEntry[] = []
+  const errors: string[] = []
 
-  for (const line of lines) {
+  for (const [index, line] of lines.entries()) {
     try {
       const parsed = JSON.parse(line)
       if (typeof parsed === 'object' && parsed !== null && 'level' in parsed && 'time' in parsed) {
         entries.push(parsed as PinoLogEntry)
+      } else if (errors.length < 5) {
+        errors.push(`Line ${index + 1}: missing required fields (level/time)`)
       }
-    } catch {
-      // Skip non-JSON lines
+    } catch (error) {
+      if (errors.length < 5) {
+        const message = error instanceof Error ? error.message : 'Invalid JSON'
+        errors.push(`Line ${index + 1}: ${message}`)
+      }
     }
   }
 
-  return entries
+  return {
+    entries,
+    diagnostics: {
+      totalLines: lines.length,
+      parsedLines: entries.length,
+      skippedLines: lines.length - entries.length,
+      errors,
+    },
+  }
+}
+
+export function parseLogs(raw: string): PinoLogEntry[] {
+  return parseLogsDetailed(raw).entries
 }
 
 export type SortField = 'time' | 'level' | 'module' | 'msg' | 'source'
@@ -140,6 +172,8 @@ export function tagLogsWithSource(logs: PinoLogEntry[], source: string): Sourced
     ...entry,
     __source: source,
     __sourceIndex: i,
+    __key: `${source}:${i}`,
+    __searchText: JSON.stringify(entry).toLowerCase(),
   }))
 }
 
@@ -275,9 +309,13 @@ export interface TimelineBucket {
 export function buildTimeline(logs: SourcedLogEntry[], bucketCount: number = 60): TimelineBucket[] {
   if (logs.length === 0) return []
 
-  const times = logs.map((e) => e.time)
-  const minTime = Math.min(...times)
-  const maxTime = Math.max(...times)
+  let minTime = logs[0].time
+  let maxTime = logs[0].time
+  for (let i = 1; i < logs.length; i++) {
+    const time = logs[i].time
+    if (time < minTime) minTime = time
+    if (time > maxTime) maxTime = time
+  }
   const range = maxTime - minTime
   if (range === 0) {
     const counts = { trace: 0, debug: 0, info: 0, warn: 0, error: 0, fatal: 0 }
@@ -311,17 +349,19 @@ export interface DiffResult {
 }
 
 export function diffLogs(logsA: SourcedLogEntry[], logsB: SourcedLogEntry[]): DiffResult[] {
-  const setA = new Set(logsA.map((e) => JSON.stringify({ level: e.level, time: e.time, msg: e.msg })))
-  const setB = new Set(logsB.map((e) => JSON.stringify({ level: e.level, time: e.time, msg: e.msg })))
+  const makeDiffKey = (entry: SourcedLogEntry): string => `${entry.level}|${entry.time}|${entry.msg ?? ''}`
+
+  const setA = new Set(logsA.map(makeDiffKey))
+  const setB = new Set(logsB.map(makeDiffKey))
 
   const results: DiffResult[] = []
 
   for (const entry of logsA) {
-    const key = JSON.stringify({ level: entry.level, time: entry.time, msg: entry.msg })
+    const key = makeDiffKey(entry)
     results.push({ type: setB.has(key) ? 'common' : 'removed', entry })
   }
   for (const entry of logsB) {
-    const key = JSON.stringify({ level: entry.level, time: entry.time, msg: entry.msg })
+    const key = makeDiffKey(entry)
     if (!setA.has(key)) {
       results.push({ type: 'added', entry })
     }
@@ -337,6 +377,8 @@ export function exportAsJSON(logs: PinoLogEntry[]): string {
     const clean = { ...e } as Record<string, unknown>
     delete clean.__source
     delete clean.__sourceIndex
+    delete clean.__key
+    delete clean.__searchText
     return JSON.stringify(clean)
   }).join('\n')
 }
