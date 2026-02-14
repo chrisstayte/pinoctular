@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
+import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ChevronDown,
@@ -12,11 +12,9 @@ import {
   Check,
   Bookmark,
   BookmarkCheck,
-  List,
 } from 'lucide-react';
 import {
   type SourcedLogEntry,
-  type LogLevel,
   type SortField,
   type SortDirection,
   getLevelName,
@@ -48,7 +46,7 @@ interface LogTableProps {
 }
 
 function getEntryKey(entry: SourcedLogEntry): string {
-  return `${entry.__source}:${entry.__sourceIndex}`;
+  return entry.__key;
 }
 
 function SortIcon({
@@ -102,8 +100,10 @@ const LogRow = memo(function LogRow({
   onSelectRow,
   onToggleBookmark,
   showSource,
+  sourceColorClass,
   virtualIndex,
   measureRef,
+  showGroupSeparator,
 }: {
   entry: SourcedLogEntry;
   index: number;
@@ -114,8 +114,10 @@ const LogRow = memo(function LogRow({
   onSelectRow: (key: string) => void;
   onToggleBookmark: (key: string) => void;
   showSource: boolean;
+  sourceColorClass: string;
   virtualIndex: number;
   measureRef: (node: HTMLTableSectionElement | null) => void;
+  showGroupSeparator: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -132,6 +134,8 @@ const LogRow = memo(function LogRow({
     const clean = { ...entry } as Record<string, unknown>;
     delete clean.__source;
     delete clean.__sourceIndex;
+    delete clean.__key;
+    delete clean.__searchText;
     navigator.clipboard.writeText(JSON.stringify(clean, null, 2));
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
@@ -139,6 +143,17 @@ const LogRow = memo(function LogRow({
 
   return (
     <tbody ref={measureRef} data-index={virtualIndex}>
+      {showGroupSeparator && (
+        <tr className="h-8 bg-background" aria-hidden="true">
+          <td colSpan={99}>
+            <div className="flex items-center gap-3 px-4">
+              <div className="flex-1 border-t-2 border-border" />
+              <span className="text-[10px] text-muted-foreground/60 font-medium uppercase tracking-widest select-none">&#xb7;&#xb7;&#xb7;</span>
+              <div className="flex-1 border-t-2 border-border" />
+            </div>
+          </td>
+        </tr>
+      )}
       <tr
         ref={rowRef}
         className={`group border-b border-border/50 hover:bg-secondary/50 cursor-pointer transition-colors ${
@@ -219,7 +234,7 @@ const LogRow = memo(function LogRow({
         {showSource && (
           <td className="px-2 py-1.5 w-24">
             <span
-              className={`text-[10px] font-mono truncate ${getSourceColor(0)}`}
+              className={`text-[10px] font-mono truncate ${sourceColorClass}`}
             >
               {entry.__source}
             </span>
@@ -339,6 +354,8 @@ const LogRow = memo(function LogRow({
                     const clean = { ...entry } as Record<string, unknown>;
                     delete clean.__source;
                     delete clean.__sourceIndex;
+                    delete clean.__key;
+                    delete clean.__searchText;
                     return clean;
                   })()}
                 />
@@ -370,6 +387,14 @@ export const LogTable = memo(function LogTable({
   const scrollRef = useRef<HTMLDivElement>(null);
   const showSource = sourceNames.length > 1;
 
+  const sourceColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    sourceNames.forEach((sourceName, index) => {
+      map.set(sourceName, getSourceColor(index));
+    });
+    return map;
+  }, [sourceNames]);
+
   // Build display list with context lines
   const displayLogs = useMemo(() => {
     if (!showBookmarksOnly && contextLines === 0) return logs;
@@ -383,29 +408,35 @@ export const LogTable = memo(function LogTable({
       const filteredKeys = new Set(logs.map(getEntryKey));
       const contextKeys = new Set<string>();
 
-      for (const entry of logs) {
-        // Find this entry's position in allLogs
-        const sourceEntries = allLogs.filter(
-          (e) => e.__source === entry.__source
-        );
-        const idx = sourceEntries.findIndex(
-          (e) => e.__sourceIndex === entry.__sourceIndex
-        );
-        if (idx === -1) continue;
+      const sourceIndexMap = new Map<string, SourcedLogEntry[]>();
+      const positionByKey = new Map<string, number>();
 
-        for (
-          let i = Math.max(0, idx - contextLines);
-          i <= Math.min(sourceEntries.length - 1, idx + contextLines);
-          i++
-        ) {
-          contextKeys.add(getEntryKey(sourceEntries[i]));
+      for (const entry of allLogs) {
+        const sourceEntries = sourceIndexMap.get(entry.__source);
+        if (sourceEntries) {
+          positionByKey.set(entry.__key, sourceEntries.length);
+          sourceEntries.push(entry);
+        } else {
+          sourceIndexMap.set(entry.__source, [entry]);
+          positionByKey.set(entry.__key, 0);
+        }
+      }
+
+      for (const entry of logs) {
+        const sourceEntries = sourceIndexMap.get(entry.__source);
+        const idx = positionByKey.get(entry.__key);
+        if (!sourceEntries || idx === undefined) continue;
+
+        const start = Math.max(0, idx - contextLines);
+        const end = Math.min(sourceEntries.length - 1, idx + contextLines);
+
+        for (let i = start; i <= end; i++) {
+          contextKeys.add(sourceEntries[i].__key);
         }
       }
 
       return allLogs.filter(
-        (entry) =>
-          filteredKeys.has(getEntryKey(entry)) ||
-          contextKeys.has(getEntryKey(entry))
+        (entry) => filteredKeys.has(entry.__key) || contextKeys.has(entry.__key)
       );
     }
 
@@ -413,6 +444,24 @@ export const LogTable = memo(function LogTable({
   }, [logs, allLogs, showBookmarksOnly, bookmarks, contextLines]);
 
   const filteredKeys = useMemo(() => new Set(logs.map(getEntryKey)), [logs]);
+
+  // Indices in displayLogs where a new context group starts (gap between entries)
+  const groupSeparators = useMemo(() => {
+    if (contextLines === 0) return new Set<number>();
+    const separators = new Set<number>();
+    for (let i = 1; i < displayLogs.length; i++) {
+      const prev = displayLogs[i - 1];
+      const curr = displayLogs[i];
+      // Gap if different source or non-consecutive index within same source
+      if (
+        prev.__source !== curr.__source ||
+        curr.__sourceIndex !== prev.__sourceIndex + 1
+      ) {
+        separators.add(i);
+      }
+    }
+    return separators;
+  }, [displayLogs, contextLines]);
 
   const virtualizer = useVirtualizer({
     count: displayLogs.length,
@@ -559,6 +608,7 @@ export const LogTable = memo(function LogTable({
           const entry = displayLogs[virtualRow.index];
           const key = getEntryKey(entry);
           const isContext = contextLines > 0 && !filteredKeys.has(key);
+          const showSeparator = groupSeparators.has(virtualRow.index);
           return (
             <LogRow
               key={key}
@@ -571,8 +621,10 @@ export const LogTable = memo(function LogTable({
               onSelectRow={onSelectRow}
               onToggleBookmark={onToggleBookmark}
               showSource={showSource}
+              sourceColorClass={sourceColorMap.get(entry.__source) ?? getSourceColor(0)}
               virtualIndex={virtualRow.index}
               measureRef={virtualizer.measureElement}
+              showGroupSeparator={showSeparator}
             />
           );
         })}

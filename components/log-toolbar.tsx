@@ -40,6 +40,7 @@ interface LogToolbarProps {
   modules: string[];
   activeModules: Set<string>;
   onToggleModule: (mod: string) => void;
+  onSetAllModules: (mods: string[]) => void;
   filteredCount: number;
   totalCount: number;
   // Field filters
@@ -67,6 +68,7 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
   modules,
   activeModules,
   onToggleModule,
+  onSetAllModules,
   filteredCount,
   totalCount,
   fieldFilters,
@@ -166,16 +168,15 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {filteredCount === totalCount
-            ? `${totalCount.toLocaleString()} logs`
-            : `${filteredCount.toLocaleString()} / ${totalCount.toLocaleString()}`}
-        </span>
       </div>
 
       {/* Filter row */}
       <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums ml-auto order-last">
+          {filteredCount === totalCount
+            ? `${totalCount.toLocaleString()} logs`
+            : `${filteredCount.toLocaleString()} / ${totalCount.toLocaleString()}`}
+        </span>
         <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider mr-1">
           Level
         </span>
@@ -254,6 +255,31 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider mr-1">
               Module
             </span>
+            <div className="flex items-center gap-0.5 mr-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-5 text-[10px] px-1.5 ${
+                  allModulesActive ? 'text-foreground' : 'text-muted-foreground'
+                }`}
+                onClick={() => onSetAllModules([...modules])}
+              >
+                All
+              </Button>
+              <span className="text-muted-foreground/30 text-[10px]">/</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-5 text-[10px] px-1.5 ${
+                  activeModules.size === 0
+                    ? 'text-foreground'
+                    : 'text-muted-foreground'
+                }`}
+                onClick={() => onSetAllModules([])}
+              >
+                None
+              </Button>
+            </div>
             {modules.map((mod) => {
               const active = activeModules.has(mod);
               return (
@@ -271,20 +297,6 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
                 </button>
               );
             })}
-            {!allModulesActive && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 text-[10px] text-muted-foreground px-1.5"
-                onClick={() =>
-                  modules.forEach((m) => {
-                    if (!activeModules.has(m)) onToggleModule(m);
-                  })
-                }
-              >
-                Show all
-              </Button>
-            )}
           </>
         )}
       </div>

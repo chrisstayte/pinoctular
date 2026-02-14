@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import {
   type PinoLogEntry,
   type SourcedLogEntry,
@@ -9,6 +10,7 @@ import {
   type SortDirection,
   type FieldFilter,
   type LogSource,
+  type ParseLogDiagnostics,
   getLevelName,
   tagLogsWithSource,
   matchesFieldFilter,
@@ -43,6 +45,7 @@ import {
   Settings2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Sheet,
   SheetContent,
@@ -54,9 +57,46 @@ import {
 type ViewMode = 'table' | 'diff' | 'trace';
 type PanelToggle = 'timeline' | 'trends' | 'errors';
 
+const DEFAULT_LEVELS: LogLevel[] = [
+  'trace',
+  'debug',
+  'info',
+  'warn',
+  'error',
+  'fatal',
+];
+
+const STORAGE_KEY = 'pinoctular:sources';
+
+function loadCachedSources(): LogSource[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+  } catch {
+    // corrupted data — ignore
+  }
+  return [];
+}
+
 export function LogViewer() {
   // ─── Sources state ───────────────────────────────────────────────
-  const [sources, setSources] = useState<LogSource[]>([]);
+  const [sources, setSources] = useState<LogSource[]>(loadCachedSources);
+
+  // Persist sources to localStorage
+  useEffect(() => {
+    try {
+      if (sources.length === 0) {
+        localStorage.removeItem(STORAGE_KEY);
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(sources));
+      }
+    } catch {
+      // storage full or unavailable — silently ignore
+    }
+  }, [sources]);
 
   // ─── Merged log entries with source tags ─────────────────────────
   const allLogs = useMemo<SourcedLogEntry[]>(() => {
@@ -67,12 +107,23 @@ export function LogViewer() {
 
   // ─── Filter / search state ──────────────────────────────────────
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 150);
   const [isRegex, setIsRegex] = useState(false);
   const [activeLevels, setActiveLevels] = useState<Set<LogLevel>>(
-    new Set(['trace', 'debug', 'info', 'warn', 'error', 'fatal'])
+    new Set(DEFAULT_LEVELS)
   );
-  const [activeModules, setActiveModules] = useState<Set<string>>(new Set());
-  const [activeSources, setActiveSources] = useState<Set<string>>(new Set());
+  const [activeModules, setActiveModules] = useState<Set<string>>(() => {
+    const mods = new Set<string>();
+    for (const src of sources) {
+      for (const log of src.logs) {
+        if (log.module) mods.add(log.module as string);
+      }
+    }
+    return mods;
+  });
+  const [activeSources, setActiveSources] = useState<Set<string>>(
+    () => new Set(sources.map((s) => s.name))
+  );
   const [fieldFilters, setFieldFilters] = useState<FieldFilter[]>([]);
   const [timeRange, setTimeRange] = useState<[number, number] | null>(null);
 
@@ -90,6 +141,9 @@ export function LogViewer() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [panels, setPanels] = useState<Set<PanelToggle>>(new Set(['timeline']));
+  const [parseDiagnostics, setParseDiagnostics] = useState<
+    Record<string, ParseLogDiagnostics>
+  >({});
 
   // Diff state
   const [diffSourceA, setDiffSourceA] = useState('');
@@ -128,15 +182,27 @@ export function LogViewer() {
   }, [allLogs]);
 
   // ─── Regex validation ──────────────────────────────────────────
-  const regexError = useMemo(() => {
-    if (!isRegex || !search) return null;
+  const compiledRegex = useMemo(() => {
+    if (!isRegex || !debouncedSearch) return null;
     try {
-      new RegExp(search, 'i');
+      return new RegExp(debouncedSearch, 'i');
+    } catch {
+      return null;
+    }
+  }, [isRegex, debouncedSearch]);
+
+  const regexError = useMemo(() => {
+    if (!isRegex || !debouncedSearch) return null;
+    if (compiledRegex) return null;
+    try {
+      new RegExp(debouncedSearch, 'i');
       return null;
     } catch (e) {
       return (e as Error).message;
     }
-  }, [isRegex, search]);
+  }, [isRegex, debouncedSearch, compiledRegex]);
+
+  const normalizedSearch = useMemo(() => debouncedSearch.toLowerCase(), [debouncedSearch]);
 
   // ─── Filter and sort logs ──────────────────────────────────────
   const filteredLogs = useMemo(() => {
@@ -167,20 +233,12 @@ export function LogViewer() {
       }
 
       // Search filter
-      if (search) {
+      if (debouncedSearch) {
         if (isRegex) {
-          if (regexError) return true;
-          try {
-            const re = new RegExp(search, 'i');
-            const searchableText = JSON.stringify(entry);
-            if (!re.test(searchableText)) return false;
-          } catch {
-            return true;
-          }
-        } else {
-          const searchLower = search.toLowerCase();
-          const searchableText = JSON.stringify(entry).toLowerCase();
-          if (!searchableText.includes(searchLower)) return false;
+          if (!compiledRegex) return true;
+          if (!compiledRegex.test(entry.__searchText)) return false;
+        } else if (!entry.__searchText.includes(normalizedSearch)) {
+          return false;
         }
       }
 
@@ -215,9 +273,10 @@ export function LogViewer() {
     return result;
   }, [
     allLogs,
-    search,
+    debouncedSearch,
     isRegex,
-    regexError,
+    compiledRegex,
+    normalizedSearch,
     activeLevels,
     activeModules,
     activeSources,
@@ -229,6 +288,10 @@ export function LogViewer() {
     sortDirection,
   ]);
 
+  const filteredLogByKey = useMemo(() => {
+    return new Map(filteredLogs.map((entry) => [entry.__key, entry]));
+  }, [filteredLogs]);
+
   // ─── Callbacks ─────────────────────────────────────────────────
   const handleLogsLoaded = useCallback(
     (newLogs: PinoLogEntry[], src: string) => {
@@ -236,7 +299,7 @@ export function LogViewer() {
       setSearch('');
       setIsRegex(false);
       setActiveLevels(
-        new Set(['trace', 'debug', 'info', 'warn', 'error', 'fatal'])
+        new Set(DEFAULT_LEVELS)
       );
       const mods = new Set<string>();
       for (const log of newLogs) {
@@ -275,6 +338,7 @@ export function LogViewer() {
     setFieldFilters([]);
     setTimeRange(null);
     setBookmarks(new Set());
+    setParseDiagnostics({});
   }, []);
 
   const toggleLevel = useCallback((level: LogLevel) => {
@@ -288,6 +352,10 @@ export function LogViewer() {
 
   const setAllLevels = useCallback((levels: LogLevel[]) => {
     setActiveLevels(new Set(levels));
+  }, []);
+
+  const setAllModules = useCallback((mods: string[]) => {
+    setActiveModules(new Set(mods));
   }, []);
 
   const toggleModule = useCallback((mod: string) => {
@@ -340,8 +408,46 @@ export function LogViewer() {
 
   const handleJumpToEntry = useCallback((entry: SourcedLogEntry) => {
     setViewMode('table');
-    setJumpToKey(`${entry.__source}:${entry.__sourceIndex}`);
+    setJumpToKey(entry.__key);
   }, []);
+
+  const handleDiagnostics = useCallback(
+    (source: string, diagnostics: ParseLogDiagnostics) => {
+      setParseDiagnostics((prev) => ({ ...prev, [source]: diagnostics }));
+    },
+    []
+  );
+
+  useEffect(() => {
+    try {
+      const storedState = window.localStorage.getItem('pinoctular:view-state');
+      if (!storedState) return;
+      const parsed = JSON.parse(storedState) as {
+        viewMode?: ViewMode;
+        contextLines?: number;
+        showBookmarksOnly?: boolean;
+        panels?: PanelToggle[];
+      };
+      if (parsed.viewMode) setViewMode(parsed.viewMode);
+      if (typeof parsed.contextLines === 'number') setContextLines(parsed.contextLines);
+      if (typeof parsed.showBookmarksOnly === 'boolean') setShowBookmarksOnly(parsed.showBookmarksOnly);
+      if (parsed.panels?.length) setPanels(new Set(parsed.panels));
+    } catch {
+      // ignore invalid persisted state
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      'pinoctular:view-state',
+      JSON.stringify({
+        viewMode,
+        contextLines,
+        showBookmarksOnly,
+        panels: Array.from(panels),
+      })
+    );
+  }, [viewMode, contextLines, showBookmarksOnly, panels]);
 
   // ─── Keyboard shortcuts ────────────────────────────────────────
   useEffect(() => {
@@ -385,9 +491,7 @@ export function LogViewer() {
       // j/k navigation
       if (e.key === 'j' || e.key === 'k') {
         e.preventDefault();
-        const keys = filteredLogs.map(
-          (entry) => `${entry.__source}:${entry.__sourceIndex}`
-        );
+        const keys = filteredLogs.map((entry) => entry.__key);
         if (keys.length === 0) return;
 
         if (!selectedRowKey) {
@@ -414,13 +518,13 @@ export function LogViewer() {
       // c = copy
       if (e.key === 'c' && selectedRowKey) {
         e.preventDefault();
-        const entry = filteredLogs.find(
-          (e) => `${e.__source}:${e.__sourceIndex}` === selectedRowKey
-        );
+        const entry = filteredLogByKey.get(selectedRowKey);
         if (entry) {
           const clean = { ...entry } as Record<string, unknown>;
           delete clean.__source;
           delete clean.__sourceIndex;
+          delete clean.__key;
+          delete clean.__searchText;
           navigator.clipboard.writeText(JSON.stringify(clean, null, 2));
         }
         return;
@@ -460,12 +564,27 @@ export function LogViewer() {
     return () => window.removeEventListener('keydown', handler);
   }, [
     filteredLogs,
+    filteredLogByKey,
     selectedRowKey,
     toggleBookmark,
     toggleLevel,
-    search,
+    debouncedSearch,
     showShortcuts,
   ]);
+
+  const parseSummary = useMemo(() => {
+    const diagnostics = Object.entries(parseDiagnostics);
+    if (diagnostics.length === 0) return null;
+
+    const totalLines = diagnostics.reduce((sum, [, d]) => sum + d.totalLines, 0);
+    const parsedLines = diagnostics.reduce((sum, [, d]) => sum + d.parsedLines, 0);
+    const skippedLines = diagnostics.reduce((sum, [, d]) => sum + d.skippedLines, 0);
+    const topErrors = diagnostics.flatMap(([source, d]) =>
+      d.errors.map((error) => `${source} — ${error}`)
+    );
+
+    return { totalLines, parsedLines, skippedLines, topErrors: topErrors.slice(0, 3) };
+  }, [parseDiagnostics]);
 
   const hasLogs = allLogs.length > 0;
   const totalSourceLabel =
@@ -500,7 +619,7 @@ export function LogViewer() {
                   count={allLogs.length}
                   onClear={handleClear}
                 />
-                <AddSourceButton onAddSource={handleAddSource} />
+                <AddSourceButton onAddSource={handleAddSource} onDiagnostics={handleDiagnostics} />
               </div>
               {/* Mobile: compact source info */}
               <div className="flex sm:hidden items-center gap-1.5 min-w-0">
@@ -562,6 +681,7 @@ export function LogViewer() {
                     handleAddSource(logs, src);
                     setMobileSheetOpen(false);
                   }}
+                  onDiagnostics={handleDiagnostics}
                 />
               </div>
             </div>
@@ -718,9 +838,28 @@ export function LogViewer() {
           hasLogs={hasLogs}
           onClear={handleClear}
           onAddSource={handleAddSource}
+          onDiagnostics={handleDiagnostics}
         />
       ) : (
         <>
+          {parseSummary && parseSummary.skippedLines > 0 && (
+            <Alert className="mx-4 mt-3 mb-1 border-amber-500/30 bg-amber-500/10">
+              <AlertTitle>Parse diagnostics</AlertTitle>
+              <AlertDescription className="text-xs">
+                Parsed {parseSummary.parsedLines.toLocaleString()} of{' '}
+                {parseSummary.totalLines.toLocaleString()} lines. Skipped{' '}
+                {parseSummary.skippedLines.toLocaleString()} malformed lines.
+                {parseSummary.topErrors.length > 0 && (
+                  <ul className="mt-2 list-disc ml-4 space-y-1">
+                    {parseSummary.topErrors.map((error) => (
+                      <li key={error}>{error}</li>
+                    ))}
+                  </ul>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* ── Desktop controls bar (lg+) ── */}
           <div className="hidden lg:flex items-center gap-2 px-4 py-2 border-b border-border bg-card">
             {/* View mode toggles */}
@@ -856,6 +995,7 @@ export function LogViewer() {
               modules={modules}
               activeModules={activeModules}
               onToggleModule={toggleModule}
+              onSetAllModules={setAllModules}
               filteredCount={filteredLogs.length}
               totalCount={allLogs.length}
               fieldFilters={fieldFilters}
