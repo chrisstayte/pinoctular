@@ -1,6 +1,7 @@
-"use client"
+'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ChevronDown,
   ChevronRight,
@@ -12,7 +13,7 @@ import {
   Bookmark,
   BookmarkCheck,
   List,
-} from "lucide-react"
+} from 'lucide-react';
 import {
   type SourcedLogEntry,
   type LogLevel,
@@ -26,28 +27,28 @@ import {
   LEVEL_ROW_COLORS,
   CORE_FIELDS,
   getSourceColor,
-} from "@/lib/log-types"
-import { JsonSyntax } from "@/components/json-syntax"
+} from '@/lib/log-types';
+import { JsonSyntax } from '@/components/json-syntax';
 
 interface LogTableProps {
-  logs: SourcedLogEntry[]
-  allLogs: SourcedLogEntry[]
-  sortField: SortField
-  sortDirection: SortDirection
-  onSort: (field: SortField) => void
-  bookmarks: Set<string>
-  onToggleBookmark: (key: string) => void
-  showBookmarksOnly: boolean
-  contextLines: number
-  selectedRowKey: string | null
-  onSelectRow: (key: string | null) => void
-  sourceNames: string[]
-  jumpToKey: string | null
-  onJumpHandled: () => void
+  logs: SourcedLogEntry[];
+  allLogs: SourcedLogEntry[];
+  sortField: SortField;
+  sortDirection: SortDirection;
+  onSort: (field: SortField) => void;
+  bookmarks: Set<string>;
+  onToggleBookmark: (key: string) => void;
+  showBookmarksOnly: boolean;
+  contextLines: number;
+  selectedRowKey: string | null;
+  onSelectRow: (key: string | null) => void;
+  sourceNames: string[];
+  jumpToKey: string | null;
+  onJumpHandled: () => void;
 }
 
 function getEntryKey(entry: SourcedLogEntry): string {
-  return `${entry.__source}:${entry.__sourceIndex}`
+  return `${entry.__source}:${entry.__sourceIndex}`;
 }
 
 function SortIcon({
@@ -55,26 +56,25 @@ function SortIcon({
   sortField,
   sortDirection,
 }: {
-  field: SortField
-  sortField: SortField
-  sortDirection: SortDirection
+  field: SortField;
+  sortField: SortField;
+  sortDirection: SortDirection;
 }) {
   if (field !== sortField)
-    return <ChevronsUpDown className="h-3 w-3 text-muted-foreground/40" />
-  return sortDirection === "asc" ? (
+    return <ChevronsUpDown className="h-3 w-3 text-muted-foreground/40" />;
+  return sortDirection === 'asc' ? (
     <ArrowUp className="h-3 w-3 text-primary" />
   ) : (
     <ArrowDown className="h-3 w-3 text-primary" />
-  )
+  );
 }
 
 function ExtraFields({ entry }: { entry: SourcedLogEntry }) {
   const extras = Object.entries(entry).filter(
     ([key]) =>
-      !(CORE_FIELDS as readonly string[]).includes(key) &&
-      !key.startsWith("__")
-  )
-  if (extras.length === 0) return null
+      !(CORE_FIELDS as readonly string[]).includes(key) && !key.startsWith('__')
+  );
+  if (extras.length === 0) return null;
 
   return (
     <div className="font-mono text-xs text-muted-foreground">
@@ -82,75 +82,77 @@ function ExtraFields({ entry }: { entry: SourcedLogEntry }) {
         <div key={key} className="flex gap-2 py-0.5">
           <span className="text-primary/70 shrink-0">{key}:</span>
           <span className="text-foreground/80 break-all whitespace-pre-wrap">
-            {typeof value === "object"
+            {typeof value === 'object'
               ? JSON.stringify(value, null, 2)
               : String(value)}
           </span>
         </div>
       ))}
     </div>
-  )
+  );
 }
 
-function LogRow({
+const LogRow = memo(function LogRow({
   entry,
   index,
   isSelected,
   isBookmarked,
   isContext,
-  onSelect,
+  entryKey,
+  onSelectRow,
   onToggleBookmark,
   showSource,
+  virtualIndex,
+  measureRef,
 }: {
-  entry: SourcedLogEntry
-  index: number
-  isSelected: boolean
-  isBookmarked: boolean
-  isContext: boolean
-  onSelect: () => void
-  onToggleBookmark: () => void
-  showSource: boolean
+  entry: SourcedLogEntry;
+  index: number;
+  isSelected: boolean;
+  isBookmarked: boolean;
+  isContext: boolean;
+  entryKey: string;
+  onSelectRow: (key: string) => void;
+  onToggleBookmark: (key: string) => void;
+  showSource: boolean;
+  virtualIndex: number;
+  measureRef: (node: HTMLTableSectionElement | null) => void;
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const level = getLevelName(entry.level)
-  const key = getEntryKey(entry)
-  const rowRef = useRef<HTMLTableRowElement>(null)
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const level = getLevelName(entry.level);
+  const rowRef = useRef<HTMLTableRowElement>(null);
 
   const extraCount = Object.keys(entry).filter(
-    (k) => !(CORE_FIELDS as readonly string[]).includes(k) && !k.startsWith("__")
-  ).length
+    (k) =>
+      !(CORE_FIELDS as readonly string[]).includes(k) && !k.startsWith('__')
+  ).length;
 
   const handleCopy = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    const clean = { ...entry } as Record<string, unknown>
-    delete clean.__source
-    delete clean.__sourceIndex
-    navigator.clipboard.writeText(JSON.stringify(clean, null, 2))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-
-  useEffect(() => {
-    if (isSelected && rowRef.current) {
-      rowRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" })
-    }
-  }, [isSelected])
+    e.stopPropagation();
+    const clean = { ...entry } as Record<string, unknown>;
+    delete clean.__source;
+    delete clean.__sourceIndex;
+    navigator.clipboard.writeText(JSON.stringify(clean, null, 2));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   return (
-    <>
+    <tbody ref={measureRef} data-index={virtualIndex}>
       <tr
         ref={rowRef}
-        className={`group border-b border-border/50 hover:bg-secondary/50 cursor-pointer transition-colors ${LEVEL_ROW_COLORS[level]} ${
-          isSelected ? "ring-1 ring-primary/40 bg-primary/5" : ""
-        } ${isContext ? "opacity-50" : ""} ${isBookmarked ? "border-l-2 border-l-primary" : ""}`}
+        className={`group border-b border-border/50 hover:bg-secondary/50 cursor-pointer transition-colors ${
+          LEVEL_ROW_COLORS[level]
+        } ${isSelected ? 'ring-1 ring-primary/40 bg-primary/5' : ''} ${
+          isContext ? 'opacity-50' : ''
+        } ${isBookmarked ? 'border-l-2 border-l-primary' : ''}`}
         onClick={() => {
-          onSelect()
-          setExpanded(!expanded)
+          onSelectRow(entryKey);
+          setExpanded(!expanded);
         }}
         role="row"
         aria-expanded={expanded}
-        data-entry-key={key}
+        data-entry-key={entryKey}
       >
         {/* Expand icon */}
         <td className="pl-3 pr-1 py-1.5 w-6">
@@ -170,14 +172,14 @@ function LogRow({
           <button
             className={`transition-opacity ${
               isBookmarked
-                ? "text-primary opacity-100"
-                : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+                ? 'text-primary opacity-100'
+                : 'opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground'
             }`}
             onClick={(e) => {
-              e.stopPropagation()
-              onToggleBookmark()
+              e.stopPropagation();
+              onToggleBookmark(entryKey);
             }}
-            aria-label={isBookmarked ? "Remove bookmark" : "Add bookmark"}
+            aria-label={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
           >
             {isBookmarked ? (
               <BookmarkCheck className="h-3 w-3" />
@@ -216,7 +218,9 @@ function LogRow({
         {/* Source (only when multiple sources) */}
         {showSource && (
           <td className="px-2 py-1.5 w-24">
-            <span className={`text-[10px] font-mono truncate ${getSourceColor(0)}`}>
+            <span
+              className={`text-[10px] font-mono truncate ${getSourceColor(0)}`}
+            >
               {entry.__source}
             </span>
           </td>
@@ -237,7 +241,7 @@ function LogRow({
             <span
               className={`text-xs font-mono ${LEVEL_COLORS[level]} leading-relaxed`}
             >
-              {entry.msg || "—"}
+              {entry.msg || '—'}
             </span>
             {extraCount > 0 && (
               <span className="text-[10px] text-muted-foreground/40 bg-secondary rounded px-1 py-0 shrink-0">
@@ -266,7 +270,10 @@ function LogRow({
       {/* Expanded detail row */}
       {expanded && (
         <tr className={`border-b border-border/50 ${LEVEL_ROW_COLORS[level]}`}>
-          <td colSpan={showSource ? 9 : 8} className="px-4 py-3 bg-secondary/30">
+          <td
+            colSpan={showSource ? 9 : 8}
+            className="px-4 py-3 bg-secondary/30"
+          >
             <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1">
               <div className="flex flex-col gap-1 text-xs font-mono">
                 <div className="flex gap-2">
@@ -329,10 +336,10 @@ function LogRow({
               <div className="mt-2">
                 <JsonSyntax
                   data={(() => {
-                    const clean = { ...entry } as Record<string, unknown>
-                    delete clean.__source
-                    delete clean.__sourceIndex
-                    return clean
+                    const clean = { ...entry } as Record<string, unknown>;
+                    delete clean.__source;
+                    delete clean.__sourceIndex;
+                    return clean;
                   })()}
                 />
               </div>
@@ -340,11 +347,11 @@ function LogRow({
           </td>
         </tr>
       )}
-    </>
-  )
-}
+    </tbody>
+  );
+});
 
-export function LogTable({
+export const LogTable = memo(function LogTable({
   logs,
   allLogs,
   sortField,
@@ -360,36 +367,38 @@ export function LogTable({
   jumpToKey,
   onJumpHandled,
 }: LogTableProps) {
-  const tableRef = useRef<HTMLDivElement>(null)
-  const showSource = sourceNames.length > 1
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const showSource = sourceNames.length > 1;
 
   // Build display list with context lines
   const displayLogs = useMemo(() => {
-    if (!showBookmarksOnly && contextLines === 0) return logs
+    if (!showBookmarksOnly && contextLines === 0) return logs;
 
     if (showBookmarksOnly) {
-      return logs.filter((entry) => bookmarks.has(getEntryKey(entry)))
+      return logs.filter((entry) => bookmarks.has(getEntryKey(entry)));
     }
 
     // Context lines: for each log in filtered set, also show N surrounding lines from allLogs
     if (contextLines > 0) {
-      const filteredKeys = new Set(logs.map(getEntryKey))
-      const contextKeys = new Set<string>()
+      const filteredKeys = new Set(logs.map(getEntryKey));
+      const contextKeys = new Set<string>();
 
       for (const entry of logs) {
         // Find this entry's position in allLogs
-        const sourceEntries = allLogs.filter((e) => e.__source === entry.__source)
+        const sourceEntries = allLogs.filter(
+          (e) => e.__source === entry.__source
+        );
         const idx = sourceEntries.findIndex(
           (e) => e.__sourceIndex === entry.__sourceIndex
-        )
-        if (idx === -1) continue
+        );
+        if (idx === -1) continue;
 
         for (
           let i = Math.max(0, idx - contextLines);
           i <= Math.min(sourceEntries.length - 1, idx + contextLines);
           i++
         ) {
-          contextKeys.add(getEntryKey(sourceEntries[i]))
+          contextKeys.add(getEntryKey(sourceEntries[i]));
         }
       }
 
@@ -397,25 +406,44 @@ export function LogTable({
         (entry) =>
           filteredKeys.has(getEntryKey(entry)) ||
           contextKeys.has(getEntryKey(entry))
-      )
+      );
     }
 
-    return logs
-  }, [logs, allLogs, showBookmarksOnly, bookmarks, contextLines])
+    return logs;
+  }, [logs, allLogs, showBookmarksOnly, bookmarks, contextLines]);
 
-  const filteredKeys = useMemo(() => new Set(logs.map(getEntryKey)), [logs])
+  const filteredKeys = useMemo(() => new Set(logs.map(getEntryKey)), [logs]);
+
+  const virtualizer = useVirtualizer({
+    count: displayLogs.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 36,
+    overscan: 30,
+  });
+
+  // Scroll to selected row (keyboard navigation)
+  useEffect(() => {
+    if (selectedRowKey) {
+      const idx = displayLogs.findIndex(
+        (e) => getEntryKey(e) === selectedRowKey
+      );
+      if (idx !== -1) {
+        virtualizer.scrollToIndex(idx, { align: 'auto' });
+      }
+    }
+  }, [selectedRowKey, displayLogs, virtualizer]);
 
   // Handle jump-to
   useEffect(() => {
-    if (jumpToKey && tableRef.current) {
-      const row = tableRef.current.querySelector(`[data-entry-key="${jumpToKey}"]`)
-      if (row) {
-        row.scrollIntoView({ block: "center", behavior: "smooth" })
-        onSelectRow(jumpToKey)
+    if (jumpToKey) {
+      const idx = displayLogs.findIndex((e) => getEntryKey(e) === jumpToKey);
+      if (idx !== -1) {
+        virtualizer.scrollToIndex(idx, { align: 'center' });
+        onSelectRow(jumpToKey);
       }
-      onJumpHandled()
+      onJumpHandled();
     }
-  }, [jumpToKey, onJumpHandled, onSelectRow])
+  }, [jumpToKey, displayLogs, virtualizer, onJumpHandled, onSelectRow]);
 
   if (displayLogs.length === 0) {
     return (
@@ -423,15 +451,23 @@ export function LogTable({
         <p className="text-sm">No matching log entries</p>
         <p className="text-xs mt-1">
           {showBookmarksOnly
-            ? "No bookmarked entries. Press B to bookmark a row."
-            : "Try adjusting your filters or search query"}
+            ? 'No bookmarked entries. Press B to bookmark a row.'
+            : 'Try adjusting your filters or search query'}
         </p>
       </div>
-    )
+    );
   }
 
+  const virtualItems = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom =
+    virtualItems.length > 0
+      ? totalSize - virtualItems[virtualItems.length - 1].end
+      : 0;
+
   return (
-    <div className="overflow-auto flex-1" ref={tableRef}>
+    <div className="overflow-auto flex-1" ref={scrollRef}>
       <table className="w-full text-left" role="table">
         <thead className="sticky top-0 z-10 bg-card border-b border-border">
           <tr>
@@ -445,9 +481,9 @@ export function LogTable({
             <th className="px-2 py-2">
               <button
                 className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                onClick={() => onSort("time")}
+                onClick={() => onSort('time')}
               >
-                Time{" "}
+                Time{' '}
                 <SortIcon
                   field="time"
                   sortField={sortField}
@@ -458,9 +494,9 @@ export function LogTable({
             <th className="px-2 py-2 w-16">
               <button
                 className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                onClick={() => onSort("level")}
+                onClick={() => onSort('level')}
               >
-                Level{" "}
+                Level{' '}
                 <SortIcon
                   field="level"
                   sortField={sortField}
@@ -472,9 +508,9 @@ export function LogTable({
               <th className="px-2 py-2 w-24">
                 <button
                   className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                  onClick={() => onSort("source")}
+                  onClick={() => onSort('source')}
                 >
-                  Source{" "}
+                  Source{' '}
                   <SortIcon
                     field="source"
                     sortField={sortField}
@@ -486,9 +522,9 @@ export function LogTable({
             <th className="px-2 py-2 w-28">
               <button
                 className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                onClick={() => onSort("module")}
+                onClick={() => onSort('module')}
               >
-                Module{" "}
+                Module{' '}
                 <SortIcon
                   field="module"
                   sortField={sortField}
@@ -499,9 +535,9 @@ export function LogTable({
             <th className="px-2 py-2">
               <button
                 className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                onClick={() => onSort("msg")}
+                onClick={() => onSort('msg')}
               >
-                Message{" "}
+                Message{' '}
                 <SortIcon
                   field="msg"
                   sortField={sortField}
@@ -512,26 +548,44 @@ export function LogTable({
             <th className="pr-3 py-2 w-8" />
           </tr>
         </thead>
-        <tbody>
-          {displayLogs.map((entry, i) => {
-            const key = getEntryKey(entry)
-            const isContext = contextLines > 0 && !filteredKeys.has(key)
-            return (
-              <LogRow
-                key={key}
-                entry={entry}
-                index={i}
-                isSelected={selectedRowKey === key}
-                isBookmarked={bookmarks.has(key)}
-                isContext={isContext}
-                onSelect={() => onSelectRow(key)}
-                onToggleBookmark={() => onToggleBookmark(key)}
-                showSource={showSource}
+        {paddingTop > 0 && (
+          <tbody>
+            <tr>
+              <td style={{ height: paddingTop, padding: 0, border: 'none' }} />
+            </tr>
+          </tbody>
+        )}
+        {virtualItems.map((virtualRow) => {
+          const entry = displayLogs[virtualRow.index];
+          const key = getEntryKey(entry);
+          const isContext = contextLines > 0 && !filteredKeys.has(key);
+          return (
+            <LogRow
+              key={key}
+              entry={entry}
+              index={virtualRow.index}
+              isSelected={selectedRowKey === key}
+              isBookmarked={bookmarks.has(key)}
+              isContext={isContext}
+              entryKey={key}
+              onSelectRow={onSelectRow}
+              onToggleBookmark={onToggleBookmark}
+              showSource={showSource}
+              virtualIndex={virtualRow.index}
+              measureRef={virtualizer.measureElement}
+            />
+          );
+        })}
+        {paddingBottom > 0 && (
+          <tbody>
+            <tr>
+              <td
+                style={{ height: paddingBottom, padding: 0, border: 'none' }}
               />
-            )
-          })}
-        </tbody>
+            </tr>
+          </tbody>
+        )}
       </table>
     </div>
-  )
-}
+  );
+});

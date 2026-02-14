@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, memo } from "react"
 import {
   Search,
   X,
@@ -56,7 +56,7 @@ interface LogToolbarProps {
   onToggleSource: (name: string) => void
 }
 
-export function LogToolbar({
+export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
   search,
   onSearchChange,
   isRegex,
@@ -268,7 +268,7 @@ export function LogToolbar({
       />
     </div>
   )
-}
+})
 
 function FieldFilterRow({
   filters,

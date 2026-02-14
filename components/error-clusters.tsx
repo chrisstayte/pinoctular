@@ -1,7 +1,7 @@
-"use client"
+'use client';
 
-import { useState, useMemo } from "react"
-import { AlertTriangle, ChevronDown, ChevronRight } from "lucide-react"
+import { useState, useMemo, memo } from 'react';
+import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import {
   type SourcedLogEntry,
   type ErrorCluster,
@@ -9,18 +9,21 @@ import {
   formatTimestamp,
   getLevelName,
   LEVEL_COLORS,
-} from "@/lib/log-types"
+} from '@/lib/log-types';
 
 interface ErrorClustersProps {
-  logs: SourcedLogEntry[]
-  onJumpToEntry: (entry: SourcedLogEntry) => void
+  logs: SourcedLogEntry[];
+  onJumpToEntry: (entry: SourcedLogEntry) => void;
 }
 
-export function ErrorClusters({ logs, onJumpToEntry }: ErrorClustersProps) {
-  const clusters = useMemo(() => clusterErrors(logs), [logs])
-  const [expandedCluster, setExpandedCluster] = useState<string | null>(null)
+export const ErrorClusters = memo(function ErrorClusters({
+  logs,
+  onJumpToEntry,
+}: ErrorClustersProps) {
+  const clusters = useMemo(() => clusterErrors(logs), [logs]);
+  const [expandedCluster, setExpandedCluster] = useState<string | null>(null);
 
-  if (clusters.length === 0) return null
+  if (clusters.length === 0) return null;
 
   return (
     <div className="px-4 py-2 border-b border-border bg-card">
@@ -30,7 +33,7 @@ export function ErrorClusters({ logs, onJumpToEntry }: ErrorClustersProps) {
           Error Clusters
         </span>
         <span className="text-[10px] text-muted-foreground">
-          ({clusters.length} {clusters.length === 1 ? "pattern" : "patterns"})
+          ({clusters.length} {clusters.length === 1 ? 'pattern' : 'patterns'})
         </span>
       </div>
 
@@ -50,8 +53,8 @@ export function ErrorClusters({ logs, onJumpToEntry }: ErrorClustersProps) {
         ))}
       </div>
     </div>
-  )
-}
+  );
+});
 
 function ClusterRow({
   cluster,
@@ -59,10 +62,10 @@ function ClusterRow({
   onToggle,
   onJumpToEntry,
 }: {
-  cluster: ErrorCluster
-  expanded: boolean
-  onToggle: () => void
-  onJumpToEntry: (entry: SourcedLogEntry) => void
+  cluster: ErrorCluster;
+  expanded: boolean;
+  onToggle: () => void;
+  onJumpToEntry: (entry: SourcedLogEntry) => void;
 }) {
   return (
     <div className="rounded border border-border/50 bg-secondary/20">
@@ -82,7 +85,8 @@ function ClusterRow({
           {cluster.count}x
         </span>
         <span className="text-[9px] text-muted-foreground shrink-0">
-          {formatTimestamp(cluster.firstSeen)} — {formatTimestamp(cluster.lastSeen)}
+          {formatTimestamp(cluster.firstSeen)} —{' '}
+          {formatTimestamp(cluster.lastSeen)}
         </span>
       </button>
 
@@ -113,5 +117,5 @@ function ClusterRow({
         </div>
       )}
     </div>
-  )
+  );
 }
