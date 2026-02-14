@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import {
   type PinoLogEntry,
@@ -153,9 +153,9 @@ export function LogViewer() {
 
   // ─── Watch / streaming state ──────────────────────────────────
   const watchConfig = useWatchConfig();
-  const [isStreaming, setIsStreaming] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [activeWatchFolder, setActiveWatchFolder] = useState<string | null>(null);
+  const knownFilesRef = useRef<Set<string>>(new Set());
 
   const handleNewStreamLines = useCallback(
     (source: string, lines: string[]) => {
@@ -179,10 +179,77 @@ export function LogViewer() {
     [activeWatchFolder]
   );
 
+  const handleFoldersUpdated = useCallback(
+    async (folders: import('@/lib/watch-api').WatchedFolder[]) => {
+      if (!activeWatchFolder) return;
+      const folder = folders.find((f) => f.name === activeWatchFolder);
+      if (!folder) return;
+
+      const currentFiles = new Set(folder.files.map((f) => f.name));
+      const removedFiles = [...knownFilesRef.current].filter((f) => !currentFiles.has(f));
+      const newFiles = folder.files.filter((f) => !knownFilesRef.current.has(f.name));
+
+      if (newFiles.length === 0 && removedFiles.length === 0) return;
+
+      if (removedFiles.length > 0) {
+        // Files were removed — re-fetch all logs for the folder since
+        // entries aren't tagged by source file
+        knownFilesRef.current = currentFiles;
+        const result = await fetchLogs(activeWatchFolder, 10000);
+        if (!result) return;
+        const allEntries: PinoLogEntry[] = [];
+        for (const file of result.files) {
+          const { entries } = parseLogsDetailed(file.lines.join('\n'));
+          allEntries.push(...entries);
+        }
+        const sourceName = `watch:${activeWatchFolder}`;
+        setSources((prev) => {
+          const idx = prev.findIndex((s) => s.name === sourceName);
+          if (idx >= 0) {
+            const updated = [...prev];
+            updated[idx] = { ...updated[idx], logs: allEntries };
+            return updated;
+          }
+          return prev;
+        });
+        return;
+      }
+
+      // Only new files — fetch just those
+      for (const f of newFiles) {
+        knownFilesRef.current.add(f.name);
+      }
+      for (const file of newFiles) {
+        const result = await fetchLogs(activeWatchFolder, 10000, file.name);
+        if (!result) continue;
+        for (const fileData of result.files) {
+          const { entries } = parseLogsDetailed(fileData.lines.join('\n'));
+          if (entries.length === 0) continue;
+          setSources((prev) => {
+            const watchSourceName = `watch:${activeWatchFolder}`;
+            const idx = prev.findIndex((s) => s.name === watchSourceName);
+            if (idx >= 0) {
+              const updated = [...prev];
+              updated[idx] = {
+                ...updated[idx],
+                logs: [...updated[idx].logs, ...entries],
+              };
+              return updated;
+            }
+            return prev;
+          });
+        }
+      }
+    },
+    [activeWatchFolder]
+  );
+
+  // Always stream when a watched folder is active
   const { isConnected } = useLogStream({
     folder: activeWatchFolder,
-    enabled: isStreaming,
+    enabled: activeWatchFolder !== null,
     onNewLines: handleNewStreamLines,
+    onFoldersUpdated: handleFoldersUpdated,
   });
 
   // Diff state
@@ -379,7 +446,6 @@ export function LogViewer() {
     setTimeRange(null);
     setBookmarks(new Set());
     setParseDiagnostics({});
-    setIsStreaming(false);
     setAutoScroll(true);
     setActiveWatchFolder(null);
   }, []);
@@ -394,6 +460,9 @@ export function LogViewer() {
         const { entries } = parseLogsDetailed(file.lines.join('\n'));
         allEntries.push(...entries);
       }
+
+      // Track known files so we can detect new ones via WebSocket
+      knownFilesRef.current = new Set(folder.files.map((f) => f.name));
 
       const sourceName = `watch:${folder.name}`;
       setSources([{ name: sourceName, logs: allEntries, watched: { folder: folder.name, name: folder.name } }]);
@@ -1050,11 +1119,9 @@ export function LogViewer() {
             {/* Stream controls (watched folder only) */}
             {activeWatchFolder && (
               <StreamControls
-                isStreaming={isStreaming}
-                onStreamToggle={() => setIsStreaming((v) => !v)}
+                isConnected={isConnected}
                 autoScroll={autoScroll}
                 onAutoScrollToggle={() => setAutoScroll((v) => !v)}
-                isConnected={isConnected}
               />
             )}
 
@@ -1141,7 +1208,7 @@ export function LogViewer() {
               sourceNames={sourceNames}
               jumpToKey={jumpToKey}
               onJumpHandled={() => setJumpToKey(null)}
-              autoScroll={isStreaming && autoScroll}
+              autoScroll={activeWatchFolder !== null && autoScroll}
               onUserScroll={() => setAutoScroll(false)}
             />
           )}

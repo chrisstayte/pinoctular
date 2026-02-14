@@ -38,3 +38,4 @@ next-env.d.ts
 firebase-debug.log
 
 /server/node_modules
+/test-logs

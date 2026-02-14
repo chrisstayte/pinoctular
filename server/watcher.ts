@@ -42,11 +42,19 @@ export class FolderWatcher extends EventEmitter {
       files: this.scanFiles(dirPath),
     })
 
-    const watcher = watch(path.join(dirPath, '*.log'), {
+    // Chokidar v4 removed glob support — watch the directory and filter .log files
+    const watcher = watch(dirPath, {
       persistent: true,
       usePolling: true,
       interval: 1000,
       ignoreInitial: true,
+      depth: 0,
+      ignored: (filePath: string) => {
+        // Allow the watched directory itself
+        if (filePath === dirPath) return false
+        // Only watch .log files
+        return !filePath.endsWith('.log')
+      },
       awaitWriteFinish: {
         stabilityThreshold: 300,
         pollInterval: 100,

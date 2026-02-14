@@ -18,23 +18,33 @@ export function useWatchConfig(): WatchConfig {
 
   useEffect(() => {
     let cancelled = false
+    let retries = 0
+    const maxRetries = 5
 
-    checkWatchAvailable().then((result) => {
-      if (cancelled) return
-      if (result) {
-        setState({
-          available: true,
-          folders: result.folders,
-          loading: false,
-        })
-      } else {
-        setState({
-          available: false,
-          folders: [],
-          loading: false,
-        })
-      }
-    })
+    const check = () => {
+      checkWatchAvailable().then((result) => {
+        if (cancelled) return
+        if (result) {
+          setState({
+            available: true,
+            folders: result.folders,
+            loading: false,
+          })
+        } else if (retries < maxRetries) {
+          // Server may not be ready yet — retry with backoff
+          retries++
+          setTimeout(check, retries * 1000)
+        } else {
+          setState({
+            available: false,
+            folders: [],
+            loading: false,
+          })
+        }
+      })
+    }
+
+    check()
 
     return () => {
       cancelled = true
