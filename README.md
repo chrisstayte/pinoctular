@@ -66,6 +66,75 @@ Paste newline-delimited JSON like:
 {"level":50,"time":1739530002000,"msg":"Unhandled exception","module":"worker"}
 ```
 
+## Self-Hosting
+
+Pinoctular is available as a multi-arch Docker image (`linux/amd64` and `linux/arm64`) from the GitHub Container Registry.
+
+### Docker Compose (recommended)
+
+Create a `compose.yml`:
+
+```yaml
+services:
+  pinoctular:
+    container_name: pinoctular
+    image: ghcr.io/chrisstayte/pinoctular:latest
+    ports:
+      - 1738:80
+    restart: unless-stopped
+```
+
+Then start it:
+
+```bash
+docker compose up -d
+```
+
+Pinoctular will be available at http://localhost:1738.
+
+> Change `1738` to any host port you prefer.
+
+### Docker Run
+
+```bash
+docker run -d \
+  --name pinoctular \
+  -p 1738:80 \
+  --restart unless-stopped \
+  ghcr.io/chrisstayte/pinoctular:latest
+```
+
+### Pinning a Version
+
+Each release publishes a tagged image. To pin to a specific version instead of `latest`:
+
+```yaml
+image: ghcr.io/chrisstayte/pinoctular:1.2.0
+```
+
+Available tags can be found on the [packages page](https://github.com/chrisstayte/pinoctular/pkgs/container/pinoctular).
+
+### Reverse Proxy
+
+If you're running Pinoctular behind a reverse proxy (e.g. Nginx, Caddy, Traefik), point it at the container's port. For example with Caddy:
+
+```
+pinoctular.example.com {
+    reverse_proxy localhost:1738
+}
+```
+
+### Building from Source
+
+If you prefer to build the image yourself:
+
+```bash
+git clone https://github.com/chrisstayte/pinoctular.git
+cd pinoctular
+docker build -t pinoctular .
+docker run -d -p 1738:80 pinoctular
+```
+
 ## Deployment
 
 This project deploys to GitHub Pages via `.github/workflows/nextjs.yml` and is available at:

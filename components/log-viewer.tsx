@@ -1,6 +1,6 @@
-"use client"
+'use client';
 
-import { useState, useMemo, useCallback, useEffect } from "react"
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   type PinoLogEntry,
   type SourcedLogEntry,
@@ -14,18 +14,22 @@ import {
   matchesFieldFilter,
   detectTraceField,
   exportAsJSON,
-} from "@/lib/log-types"
-import { LogInput, LogSourceBadge, AddSourceButton } from "@/components/log-input"
-import { LogToolbar } from "@/components/log-toolbar"
-import { LogTable } from "@/components/log-table"
-import { LogStats } from "@/components/log-stats"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { TimelineHistogram } from "@/components/timeline-histogram"
-import { LevelTrendChart } from "@/components/level-trend-chart"
-import { ErrorClusters } from "@/components/error-clusters"
-import { DiffView } from "@/components/diff-view"
-import { RequestTrace } from "@/components/request-trace"
-import { KeyboardShortcuts } from "@/components/keyboard-shortcuts"
+} from '@/lib/log-types';
+import {
+  LogInput,
+  LogSourceBadge,
+  AddSourceButton,
+} from '@/components/log-input';
+import { LogToolbar } from '@/components/log-toolbar';
+import { LogTable } from '@/components/log-table';
+import { LogStats } from '@/components/log-stats';
+import { ThemeToggle } from '@/components/theme-toggle';
+import { TimelineHistogram } from '@/components/timeline-histogram';
+import { LevelTrendChart } from '@/components/level-trend-chart';
+import { ErrorClusters } from '@/components/error-clusters';
+import { DiffView } from '@/components/diff-view';
+import { RequestTrace } from '@/components/request-trace';
+import { KeyboardShortcuts } from '@/components/keyboard-shortcuts';
 import {
   Bookmark,
   BookmarkCheck,
@@ -37,176 +41,178 @@ import {
   AlertTriangle,
   TrendingUp,
   Settings2,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetDescription,
-} from "@/components/ui/sheet"
+} from '@/components/ui/sheet';
 
-type ViewMode = "table" | "diff" | "trace"
-type PanelToggle = "timeline" | "trends" | "errors"
+type ViewMode = 'table' | 'diff' | 'trace';
+type PanelToggle = 'timeline' | 'trends' | 'errors';
 
 export function LogViewer() {
   // ─── Sources state ───────────────────────────────────────────────
-  const [sources, setSources] = useState<LogSource[]>([])
+  const [sources, setSources] = useState<LogSource[]>([]);
 
   // ─── Merged log entries with source tags ─────────────────────────
   const allLogs = useMemo<SourcedLogEntry[]>(() => {
-    return sources.flatMap((src) => tagLogsWithSource(src.logs, src.name))
-  }, [sources])
+    return sources.flatMap((src) => tagLogsWithSource(src.logs, src.name));
+  }, [sources]);
 
-  const sourceNames = useMemo(() => sources.map((s) => s.name), [sources])
+  const sourceNames = useMemo(() => sources.map((s) => s.name), [sources]);
 
   // ─── Filter / search state ──────────────────────────────────────
-  const [search, setSearch] = useState("")
-  const [isRegex, setIsRegex] = useState(false)
+  const [search, setSearch] = useState('');
+  const [isRegex, setIsRegex] = useState(false);
   const [activeLevels, setActiveLevels] = useState<Set<LogLevel>>(
-    new Set(["trace", "debug", "info", "warn", "error", "fatal"])
-  )
-  const [activeModules, setActiveModules] = useState<Set<string>>(new Set())
-  const [activeSources, setActiveSources] = useState<Set<string>>(new Set())
-  const [fieldFilters, setFieldFilters] = useState<FieldFilter[]>([])
-  const [timeRange, setTimeRange] = useState<[number, number] | null>(null)
+    new Set(['trace', 'debug', 'info', 'warn', 'error', 'fatal'])
+  );
+  const [activeModules, setActiveModules] = useState<Set<string>>(new Set());
+  const [activeSources, setActiveSources] = useState<Set<string>>(new Set());
+  const [fieldFilters, setFieldFilters] = useState<FieldFilter[]>([]);
+  const [timeRange, setTimeRange] = useState<[number, number] | null>(null);
 
   // ─── Sort state ─────────────────────────────────────────────────
-  const [sortField, setSortField] = useState<SortField>("time")
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
+  const [sortField, setSortField] = useState<SortField>('time');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   // ─── UI state ───────────────────────────────────────────────────
-  const [viewMode, setViewMode] = useState<ViewMode>("table")
-  const [bookmarks, setBookmarks] = useState<Set<string>>(new Set())
-  const [showBookmarksOnly, setShowBookmarksOnly] = useState(false)
-  const [contextLines, setContextLines] = useState(0)
-  const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null)
-  const [jumpToKey, setJumpToKey] = useState<string | null>(null)
-  const [showShortcuts, setShowShortcuts] = useState(false)
-  const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
-  const [panels, setPanels] = useState<Set<PanelToggle>>(new Set(["timeline"]))
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
+  const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
+  const [contextLines, setContextLines] = useState(0);
+  const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
+  const [jumpToKey, setJumpToKey] = useState<string | null>(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const [panels, setPanels] = useState<Set<PanelToggle>>(new Set(['timeline']));
 
   // Diff state
-  const [diffSourceA, setDiffSourceA] = useState("")
-  const [diffSourceB, setDiffSourceB] = useState("")
+  const [diffSourceA, setDiffSourceA] = useState('');
+  const [diffSourceB, setDiffSourceB] = useState('');
 
   // ─── Derived data ───────────────────────────────────────────────
   const modules = useMemo(() => {
-    const set = new Set<string>()
+    const set = new Set<string>();
     for (const log of allLogs) {
-      if (log.module) set.add(log.module as string)
+      if (log.module) set.add(log.module as string);
     }
-    return Array.from(set).sort()
-  }, [allLogs])
+    return Array.from(set).sort();
+  }, [allLogs]);
 
   const availableFields = useMemo(() => {
-    const set = new Set<string>()
-    const sample = allLogs.slice(0, 200)
+    const set = new Set<string>();
+    const sample = allLogs.slice(0, 200);
     for (const entry of sample) {
       for (const key of Object.keys(entry)) {
-        if (!key.startsWith("__")) set.add(key)
+        if (!key.startsWith('__')) set.add(key);
       }
     }
-    return Array.from(set).sort()
-  }, [allLogs])
+    return Array.from(set).sort();
+  }, [allLogs]);
 
-  const traceField = useMemo(() => detectTraceField(allLogs), [allLogs])
+  const traceField = useMemo(() => detectTraceField(allLogs), [allLogs]);
 
   const logsBySource = useMemo(() => {
-    const map = new Map<string, SourcedLogEntry[]>()
+    const map = new Map<string, SourcedLogEntry[]>();
     for (const entry of allLogs) {
-      const group = map.get(entry.__source)
-      if (group) group.push(entry)
-      else map.set(entry.__source, [entry])
+      const group = map.get(entry.__source);
+      if (group) group.push(entry);
+      else map.set(entry.__source, [entry]);
     }
-    return map
-  }, [allLogs])
+    return map;
+  }, [allLogs]);
 
   // ─── Regex validation ──────────────────────────────────────────
   const regexError = useMemo(() => {
-    if (!isRegex || !search) return null
+    if (!isRegex || !search) return null;
     try {
-      new RegExp(search, "i")
-      return null
+      new RegExp(search, 'i');
+      return null;
     } catch (e) {
-      return (e as Error).message
+      return (e as Error).message;
     }
-  }, [isRegex, search])
+  }, [isRegex, search]);
 
   // ─── Filter and sort logs ──────────────────────────────────────
   const filteredLogs = useMemo(() => {
     let result = allLogs.filter((entry) => {
       // Level filter
-      const level = getLevelName(entry.level)
-      if (!activeLevels.has(level)) return false
+      const level = getLevelName(entry.level);
+      if (!activeLevels.has(level)) return false;
 
       // Source filter
-      if (sourceNames.length > 1 && !activeSources.has(entry.__source)) return false
+      if (sourceNames.length > 1 && !activeSources.has(entry.__source))
+        return false;
 
       // Module filter
       if (modules.length > 0) {
-        const entryModule = (entry.module as string) || ""
-        if (entryModule && !activeModules.has(entryModule)) return false
+        const entryModule = (entry.module as string) || '';
+        if (entryModule && !activeModules.has(entryModule)) return false;
       }
 
       // Time range filter
       if (timeRange) {
-        if (entry.time < timeRange[0] || entry.time > timeRange[1]) return false
+        if (entry.time < timeRange[0] || entry.time > timeRange[1])
+          return false;
       }
 
       // Field filters
       for (const filter of fieldFilters) {
-        if (!matchesFieldFilter(entry, filter)) return false
+        if (!matchesFieldFilter(entry, filter)) return false;
       }
 
       // Search filter
       if (search) {
         if (isRegex) {
-          if (regexError) return true
+          if (regexError) return true;
           try {
-            const re = new RegExp(search, "i")
-            const searchableText = JSON.stringify(entry)
-            if (!re.test(searchableText)) return false
+            const re = new RegExp(search, 'i');
+            const searchableText = JSON.stringify(entry);
+            if (!re.test(searchableText)) return false;
           } catch {
-            return true
+            return true;
           }
         } else {
-          const searchLower = search.toLowerCase()
-          const searchableText = JSON.stringify(entry).toLowerCase()
-          if (!searchableText.includes(searchLower)) return false
+          const searchLower = search.toLowerCase();
+          const searchableText = JSON.stringify(entry).toLowerCase();
+          if (!searchableText.includes(searchLower)) return false;
         }
       }
 
-      return true
-    })
+      return true;
+    });
 
     // Sort
     result.sort((a, b) => {
-      let cmp = 0
+      let cmp = 0;
       switch (sortField) {
-        case "time":
-          cmp = a.time - b.time
-          break
-        case "level":
-          cmp = a.level - b.level
-          break
-        case "module":
-          cmp = ((a.module as string) || "").localeCompare(
-            (b.module as string) || ""
-          )
-          break
-        case "msg":
-          cmp = (a.msg || "").localeCompare(b.msg || "")
-          break
-        case "source":
-          cmp = a.__source.localeCompare(b.__source)
-          break
+        case 'time':
+          cmp = a.time - b.time;
+          break;
+        case 'level':
+          cmp = a.level - b.level;
+          break;
+        case 'module':
+          cmp = ((a.module as string) || '').localeCompare(
+            (b.module as string) || ''
+          );
+          break;
+        case 'msg':
+          cmp = (a.msg || '').localeCompare(b.msg || '');
+          break;
+        case 'source':
+          cmp = a.__source.localeCompare(b.__source);
+          break;
       }
-      return sortDirection === "asc" ? cmp : -cmp
-    })
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
 
-    return result
+    return result;
   }, [
     allLogs,
     search,
@@ -221,237 +227,237 @@ export function LogViewer() {
     timeRange,
     sortField,
     sortDirection,
-  ])
+  ]);
 
   // ─── Callbacks ─────────────────────────────────────────────────
   const handleLogsLoaded = useCallback(
     (newLogs: PinoLogEntry[], src: string) => {
-      setSources([{ name: src, logs: newLogs }])
-      setSearch("")
-      setIsRegex(false)
+      setSources([{ name: src, logs: newLogs }]);
+      setSearch('');
+      setIsRegex(false);
       setActiveLevels(
-        new Set(["trace", "debug", "info", "warn", "error", "fatal"])
-      )
-      const mods = new Set<string>()
+        new Set(['trace', 'debug', 'info', 'warn', 'error', 'fatal'])
+      );
+      const mods = new Set<string>();
       for (const log of newLogs) {
-        if (log.module) mods.add(log.module as string)
+        if (log.module) mods.add(log.module as string);
       }
-      setActiveModules(mods)
-      setActiveSources(new Set([src]))
-      setSortField("time")
-      setSortDirection("asc")
-      setFieldFilters([])
-      setTimeRange(null)
-      setBookmarks(new Set())
-      setShowBookmarksOnly(false)
-      setContextLines(0)
-      setViewMode("table")
+      setActiveModules(mods);
+      setActiveSources(new Set([src]));
+      setSortField('time');
+      setSortDirection('asc');
+      setFieldFilters([]);
+      setTimeRange(null);
+      setBookmarks(new Set());
+      setShowBookmarksOnly(false);
+      setContextLines(0);
+      setViewMode('table');
     },
     []
-  )
+  );
 
   const handleAddSource = useCallback(
     (newLogs: PinoLogEntry[], src: string) => {
-      setSources((prev) => [...prev, { name: src, logs: newLogs }])
-      setActiveSources((prev) => new Set([...prev, src]))
-      const mods = new Set<string>()
+      setSources((prev) => [...prev, { name: src, logs: newLogs }]);
+      setActiveSources((prev) => new Set([...prev, src]));
+      const mods = new Set<string>();
       for (const log of newLogs) {
-        if (log.module) mods.add(log.module as string)
+        if (log.module) mods.add(log.module as string);
       }
-      setActiveModules((prev) => new Set([...prev, ...mods]))
+      setActiveModules((prev) => new Set([...prev, ...mods]));
     },
     []
-  )
+  );
 
   const handleClear = useCallback(() => {
-    setSources([])
-    setSearch("")
-    setFieldFilters([])
-    setTimeRange(null)
-    setBookmarks(new Set())
-  }, [])
+    setSources([]);
+    setSearch('');
+    setFieldFilters([]);
+    setTimeRange(null);
+    setBookmarks(new Set());
+  }, []);
 
   const toggleLevel = useCallback((level: LogLevel) => {
     setActiveLevels((prev) => {
-      const next = new Set(prev)
-      if (next.has(level)) next.delete(level)
-      else next.add(level)
-      return next
-    })
-  }, [])
+      const next = new Set(prev);
+      if (next.has(level)) next.delete(level);
+      else next.add(level);
+      return next;
+    });
+  }, []);
 
   const setAllLevels = useCallback((levels: LogLevel[]) => {
-    setActiveLevels(new Set(levels))
-  }, [])
+    setActiveLevels(new Set(levels));
+  }, []);
 
   const toggleModule = useCallback((mod: string) => {
     setActiveModules((prev) => {
-      const next = new Set(prev)
-      if (next.has(mod)) next.delete(mod)
-      else next.add(mod)
-      return next
-    })
-  }, [])
+      const next = new Set(prev);
+      if (next.has(mod)) next.delete(mod);
+      else next.add(mod);
+      return next;
+    });
+  }, []);
 
   const toggleSource = useCallback((name: string) => {
     setActiveSources((prev) => {
-      const next = new Set(prev)
-      if (next.has(name)) next.delete(name)
-      else next.add(name)
-      return next
-    })
-  }, [])
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }, []);
 
   const handleSort = useCallback(
     (field: SortField) => {
       if (sortField === field) {
-        setSortDirection((d) => (d === "asc" ? "desc" : "asc"))
+        setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
       } else {
-        setSortField(field)
-        setSortDirection("asc")
+        setSortField(field);
+        setSortDirection('asc');
       }
     },
     [sortField]
-  )
+  );
 
   const toggleBookmark = useCallback((key: string) => {
     setBookmarks((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }, [])
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const togglePanel = useCallback((panel: PanelToggle) => {
     setPanels((prev) => {
-      const next = new Set(prev)
-      if (next.has(panel)) next.delete(panel)
-      else next.add(panel)
-      return next
-    })
-  }, [])
+      const next = new Set(prev);
+      if (next.has(panel)) next.delete(panel);
+      else next.add(panel);
+      return next;
+    });
+  }, []);
 
   const handleJumpToEntry = useCallback((entry: SourcedLogEntry) => {
-    setViewMode("table")
-    setJumpToKey(`${entry.__source}:${entry.__sourceIndex}`)
-  }, [])
+    setViewMode('table');
+    setJumpToKey(`${entry.__source}:${entry.__sourceIndex}`);
+  }, []);
 
   // ─── Keyboard shortcuts ────────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement
+      const target = e.target as HTMLElement;
       const isInput =
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.tagName === "SELECT" ||
-        target.isContentEditable
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable;
 
-      if (e.key === "?" && !isInput) {
-        e.preventDefault()
-        setShowShortcuts((v) => !v)
-        return
+      if (e.key === '?' && !isInput) {
+        e.preventDefault();
+        setShowShortcuts((v) => !v);
+        return;
       }
 
-      if (e.key === "/" && !isInput) {
-        e.preventDefault()
-        document.getElementById("log-search-input")?.focus()
-        return
+      if (e.key === '/' && !isInput) {
+        e.preventDefault();
+        document.getElementById('log-search-input')?.focus();
+        return;
       }
 
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         if (showShortcuts) {
-          setShowShortcuts(false)
-          return
+          setShowShortcuts(false);
+          return;
         }
         if (search) {
-          setSearch("")
-          return
+          setSearch('');
+          return;
         }
         if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur()
+          document.activeElement.blur();
         }
-        return
+        return;
       }
 
-      if (isInput) return
+      if (isInput) return;
 
       // j/k navigation
-      if (e.key === "j" || e.key === "k") {
-        e.preventDefault()
+      if (e.key === 'j' || e.key === 'k') {
+        e.preventDefault();
         const keys = filteredLogs.map(
           (entry) => `${entry.__source}:${entry.__sourceIndex}`
-        )
-        if (keys.length === 0) return
+        );
+        if (keys.length === 0) return;
 
         if (!selectedRowKey) {
-          setSelectedRowKey(keys[0])
-          return
+          setSelectedRowKey(keys[0]);
+          return;
         }
 
-        const currentIdx = keys.indexOf(selectedRowKey)
+        const currentIdx = keys.indexOf(selectedRowKey);
         const nextIdx =
-          e.key === "j"
+          e.key === 'j'
             ? Math.min(currentIdx + 1, keys.length - 1)
-            : Math.max(currentIdx - 1, 0)
-        setSelectedRowKey(keys[nextIdx])
-        return
+            : Math.max(currentIdx - 1, 0);
+        setSelectedRowKey(keys[nextIdx]);
+        return;
       }
 
       // b = bookmark
-      if (e.key === "b" && selectedRowKey) {
-        e.preventDefault()
-        toggleBookmark(selectedRowKey)
-        return
+      if (e.key === 'b' && selectedRowKey) {
+        e.preventDefault();
+        toggleBookmark(selectedRowKey);
+        return;
       }
 
       // c = copy
-      if (e.key === "c" && selectedRowKey) {
-        e.preventDefault()
+      if (e.key === 'c' && selectedRowKey) {
+        e.preventDefault();
         const entry = filteredLogs.find(
           (e) => `${e.__source}:${e.__sourceIndex}` === selectedRowKey
-        )
+        );
         if (entry) {
-          const clean = { ...entry } as Record<string, unknown>
-          delete clean.__source
-          delete clean.__sourceIndex
-          navigator.clipboard.writeText(JSON.stringify(clean, null, 2))
+          const clean = { ...entry } as Record<string, unknown>;
+          delete clean.__source;
+          delete clean.__sourceIndex;
+          navigator.clipboard.writeText(JSON.stringify(clean, null, 2));
         }
-        return
+        return;
       }
 
       // e = export
-      if (e.key === "e") {
-        e.preventDefault()
-        const content = exportAsJSON(filteredLogs)
-        const blob = new Blob([content], { type: "application/json" })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = url
-        a.download = "logs-export.json"
-        a.click()
-        URL.revokeObjectURL(url)
-        return
+      if (e.key === 'e') {
+        e.preventDefault();
+        const content = exportAsJSON(filteredLogs);
+        const blob = new Blob([content], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'logs-export.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
       }
 
       // 1-6 = toggle log levels
       const levelMap: Record<string, LogLevel> = {
-        "1": "trace",
-        "2": "debug",
-        "3": "info",
-        "4": "warn",
-        "5": "error",
-        "6": "fatal",
-      }
+        '1': 'trace',
+        '2': 'debug',
+        '3': 'info',
+        '4': 'warn',
+        '5': 'error',
+        '6': 'fatal',
+      };
       if (levelMap[e.key]) {
-        e.preventDefault()
-        toggleLevel(levelMap[e.key])
-        return
+        e.preventDefault();
+        toggleLevel(levelMap[e.key]);
+        return;
       }
-    }
+    };
 
-    window.addEventListener("keydown", handler)
-    return () => window.removeEventListener("keydown", handler)
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, [
     filteredLogs,
     selectedRowKey,
@@ -459,13 +465,11 @@ export function LogViewer() {
     toggleLevel,
     search,
     showShortcuts,
-  ])
+  ]);
 
-  const hasLogs = allLogs.length > 0
+  const hasLogs = allLogs.length > 0;
   const totalSourceLabel =
-    sources.length > 1
-      ? `${sources.length} sources`
-      : sources[0]?.name || ""
+    sources.length > 1 ? `${sources.length} sources` : sources[0]?.name || '';
 
   return (
     <div className="flex flex-col h-screen">
@@ -479,7 +483,7 @@ export function LogViewer() {
               </span>
             </div>
             <h1 className="text-sm font-semibold text-foreground tracking-tight hidden sm:block">
-              Pino Log Viewer
+              Pinoctular
             </h1>
             {process.env.NEXT_PUBLIC_APP_VERSION && (
               <span className="text-[10px] text-muted-foreground font-mono hidden sm:block">
@@ -515,24 +519,24 @@ export function LogViewer() {
               {/* View mode toggles */}
               <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5">
                 <Button
-                  variant={viewMode === "table" ? "secondary" : "ghost"}
+                  variant={viewMode === 'table' ? 'secondary' : 'ghost'}
                   size="sm"
                   className="h-6 px-2 text-[10px]"
-                  onClick={() => setViewMode("table")}
+                  onClick={() => setViewMode('table')}
                 >
                   <List className="h-3 w-3 mr-1" />
                   Table
                 </Button>
                 {sourceNames.length > 1 && (
                   <Button
-                    variant={viewMode === "diff" ? "secondary" : "ghost"}
+                    variant={viewMode === 'diff' ? 'secondary' : 'ghost'}
                     size="sm"
                     className="h-6 px-2 text-[10px]"
                     onClick={() => {
-                      setViewMode("diff")
+                      setViewMode('diff');
                       if (!diffSourceA && sourceNames.length >= 2) {
-                        setDiffSourceA(sourceNames[0])
-                        setDiffSourceB(sourceNames[1])
+                        setDiffSourceA(sourceNames[0]);
+                        setDiffSourceB(sourceNames[1]);
                       }
                     }}
                   >
@@ -542,10 +546,10 @@ export function LogViewer() {
                 )}
                 {traceField && (
                   <Button
-                    variant={viewMode === "trace" ? "secondary" : "ghost"}
+                    variant={viewMode === 'trace' ? 'secondary' : 'ghost'}
                     size="sm"
                     className="h-6 px-2 text-[10px]"
-                    onClick={() => setViewMode("trace")}
+                    onClick={() => setViewMode('trace')}
                   >
                     <Network className="h-3 w-3 mr-1" />
                     Traces
@@ -556,28 +560,28 @@ export function LogViewer() {
               {/* Panel toggles */}
               <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5">
                 <Button
-                  variant={panels.has("timeline") ? "secondary" : "ghost"}
+                  variant={panels.has('timeline') ? 'secondary' : 'ghost'}
                   size="sm"
                   className="h-6 px-2 text-[10px]"
-                  onClick={() => togglePanel("timeline")}
+                  onClick={() => togglePanel('timeline')}
                   title="Timeline histogram"
                 >
                   <BarChart3 className="h-3 w-3" />
                 </Button>
                 <Button
-                  variant={panels.has("trends") ? "secondary" : "ghost"}
+                  variant={panels.has('trends') ? 'secondary' : 'ghost'}
                   size="sm"
                   className="h-6 px-2 text-[10px]"
-                  onClick={() => togglePanel("trends")}
+                  onClick={() => togglePanel('trends')}
                   title="Level trends"
                 >
                   <TrendingUp className="h-3 w-3" />
                 </Button>
                 <Button
-                  variant={panels.has("errors") ? "secondary" : "ghost"}
+                  variant={panels.has('errors') ? 'secondary' : 'ghost'}
                   size="sm"
                   className="h-6 px-2 text-[10px]"
-                  onClick={() => togglePanel("errors")}
+                  onClick={() => togglePanel('errors')}
                   title="Error clusters"
                 >
                   <AlertTriangle className="h-3 w-3" />
@@ -586,7 +590,7 @@ export function LogViewer() {
 
               {/* Bookmarks toggle */}
               <Button
-                variant={showBookmarksOnly ? "secondary" : "ghost"}
+                variant={showBookmarksOnly ? 'secondary' : 'ghost'}
                 size="sm"
                 className="h-6 px-2 text-[10px] gap-1"
                 onClick={() => setShowBookmarksOnly(!showBookmarksOnly)}
@@ -650,7 +654,10 @@ export function LogViewer() {
 
       {/* ── Mobile controls sheet ── */}
       <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
-        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto px-5 pb-8">
+        <SheetContent
+          side="bottom"
+          className="max-h-[85vh] overflow-y-auto px-5 pb-8"
+        >
           <SheetHeader className="mb-4">
             <SheetTitle className="text-sm">Controls</SheetTitle>
             <SheetDescription className="text-xs">
@@ -661,42 +668,57 @@ export function LogViewer() {
           <div className="space-y-5">
             {/* Source info + actions */}
             <div className="space-y-2">
-              <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Source</h3>
+              <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                Source
+              </h3>
               <div className="flex items-center gap-2 flex-wrap">
                 <LogSourceBadge
                   source={totalSourceLabel}
                   count={allLogs.length}
-                  onClear={() => { handleClear(); setMobileSheetOpen(false) }}
+                  onClear={() => {
+                    handleClear();
+                    setMobileSheetOpen(false);
+                  }}
                 />
-                <AddSourceButton onAddSource={(logs, src) => { handleAddSource(logs, src); setMobileSheetOpen(false) }} />
+                <AddSourceButton
+                  onAddSource={(logs, src) => {
+                    handleAddSource(logs, src);
+                    setMobileSheetOpen(false);
+                  }}
+                />
               </div>
             </div>
 
             {/* View mode */}
             <div className="space-y-2">
-              <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">View</h3>
+              <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                View
+              </h3>
               <div className="flex items-center gap-1">
                 <Button
-                  variant={viewMode === "table" ? "secondary" : "outline"}
+                  variant={viewMode === 'table' ? 'secondary' : 'outline'}
                   size="sm"
                   className="h-8 px-3 text-xs gap-1.5"
-                  onClick={() => { setViewMode("table"); setMobileSheetOpen(false) }}
+                  onClick={() => {
+                    setViewMode('table');
+                    setMobileSheetOpen(false);
+                  }}
                 >
                   <List className="h-3.5 w-3.5" />
                   Table
                 </Button>
                 {sourceNames.length > 1 && (
                   <Button
-                    variant={viewMode === "diff" ? "secondary" : "outline"}
+                    variant={viewMode === 'diff' ? 'secondary' : 'outline'}
                     size="sm"
                     className="h-8 px-3 text-xs gap-1.5"
                     onClick={() => {
-                      setViewMode("diff")
+                      setViewMode('diff');
                       if (!diffSourceA && sourceNames.length >= 2) {
-                        setDiffSourceA(sourceNames[0])
-                        setDiffSourceB(sourceNames[1])
+                        setDiffSourceA(sourceNames[0]);
+                        setDiffSourceB(sourceNames[1]);
                       }
-                      setMobileSheetOpen(false)
+                      setMobileSheetOpen(false);
                     }}
                   >
                     <GitCompare className="h-3.5 w-3.5" />
@@ -705,10 +727,13 @@ export function LogViewer() {
                 )}
                 {traceField && (
                   <Button
-                    variant={viewMode === "trace" ? "secondary" : "outline"}
+                    variant={viewMode === 'trace' ? 'secondary' : 'outline'}
                     size="sm"
                     className="h-8 px-3 text-xs gap-1.5"
-                    onClick={() => { setViewMode("trace"); setMobileSheetOpen(false) }}
+                    onClick={() => {
+                      setViewMode('trace');
+                      setMobileSheetOpen(false);
+                    }}
                   >
                     <Network className="h-3.5 w-3.5" />
                     Traces
@@ -719,31 +744,33 @@ export function LogViewer() {
 
             {/* Panels */}
             <div className="space-y-2">
-              <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Panels</h3>
+              <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                Panels
+              </h3>
               <div className="flex items-center gap-1">
                 <Button
-                  variant={panels.has("timeline") ? "secondary" : "outline"}
+                  variant={panels.has('timeline') ? 'secondary' : 'outline'}
                   size="sm"
                   className="h-8 px-3 text-xs gap-1.5"
-                  onClick={() => togglePanel("timeline")}
+                  onClick={() => togglePanel('timeline')}
                 >
                   <BarChart3 className="h-3.5 w-3.5" />
                   Timeline
                 </Button>
                 <Button
-                  variant={panels.has("trends") ? "secondary" : "outline"}
+                  variant={panels.has('trends') ? 'secondary' : 'outline'}
                   size="sm"
                   className="h-8 px-3 text-xs gap-1.5"
-                  onClick={() => togglePanel("trends")}
+                  onClick={() => togglePanel('trends')}
                 >
                   <TrendingUp className="h-3.5 w-3.5" />
                   Trends
                 </Button>
                 <Button
-                  variant={panels.has("errors") ? "secondary" : "outline"}
+                  variant={panels.has('errors') ? 'secondary' : 'outline'}
                   size="sm"
                   className="h-8 px-3 text-xs gap-1.5"
-                  onClick={() => togglePanel("errors")}
+                  onClick={() => togglePanel('errors')}
                 >
                   <AlertTriangle className="h-3.5 w-3.5" />
                   Errors
@@ -753,9 +780,11 @@ export function LogViewer() {
 
             {/* Bookmarks */}
             <div className="space-y-2">
-              <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Bookmarks</h3>
+              <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                Bookmarks
+              </h3>
               <Button
-                variant={showBookmarksOnly ? "secondary" : "outline"}
+                variant={showBookmarksOnly ? 'secondary' : 'outline'}
                 size="sm"
                 className="h-8 px-3 text-xs gap-1.5"
                 onClick={() => setShowBookmarksOnly(!showBookmarksOnly)}
@@ -765,16 +794,22 @@ export function LogViewer() {
                 ) : (
                   <Bookmark className="h-3.5 w-3.5" />
                 )}
-                {showBookmarksOnly ? "Showing bookmarks" : "Show bookmarks only"}
+                {showBookmarksOnly
+                  ? 'Showing bookmarks'
+                  : 'Show bookmarks only'}
                 {bookmarks.size > 0 && (
-                  <span className="text-[10px] text-muted-foreground ml-1">({bookmarks.size})</span>
+                  <span className="text-[10px] text-muted-foreground ml-1">
+                    ({bookmarks.size})
+                  </span>
                 )}
               </Button>
             </div>
 
             {/* Context lines */}
             <div className="space-y-2">
-              <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Context Lines</h3>
+              <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                Context Lines
+              </h3>
               <select
                 className="h-8 text-xs bg-secondary border border-border rounded px-2 text-foreground w-full"
                 value={contextLines}
@@ -790,7 +825,9 @@ export function LogViewer() {
 
             {/* Level stats */}
             <div className="space-y-2">
-              <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Level Distribution</h3>
+              <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                Level Distribution
+              </h3>
               <LogStats logs={allLogs} />
             </div>
           </div>
@@ -808,7 +845,7 @@ export function LogViewer() {
       ) : (
         <>
           {/* Toolbar (table & trace views) */}
-          {viewMode !== "diff" && (
+          {viewMode !== 'diff' && (
             <LogToolbar
               search={search}
               onSearchChange={setSearch}
@@ -837,24 +874,27 @@ export function LogViewer() {
           )}
 
           {/* Collapsible panels */}
-          {viewMode === "table" && (
+          {viewMode === 'table' && (
             <>
-              {panels.has("timeline") && (
+              {panels.has('timeline') && (
                 <TimelineHistogram
                   logs={allLogs}
                   timeRange={timeRange}
                   onTimeRangeChange={setTimeRange}
                 />
               )}
-              {panels.has("trends") && <LevelTrendChart logs={allLogs} />}
-              {panels.has("errors") && (
-                <ErrorClusters logs={allLogs} onJumpToEntry={handleJumpToEntry} />
+              {panels.has('trends') && <LevelTrendChart logs={allLogs} />}
+              {panels.has('errors') && (
+                <ErrorClusters
+                  logs={allLogs}
+                  onJumpToEntry={handleJumpToEntry}
+                />
               )}
             </>
           )}
 
           {/* Main content area */}
-          {viewMode === "table" && (
+          {viewMode === 'table' && (
             <LogTable
               logs={filteredLogs}
               allLogs={allLogs}
@@ -873,7 +913,7 @@ export function LogViewer() {
             />
           )}
 
-          {viewMode === "diff" && sourceNames.length > 1 && (
+          {viewMode === 'diff' && sourceNames.length > 1 && (
             <DiffView
               sourceNames={sourceNames}
               logsBySource={logsBySource}
@@ -884,7 +924,7 @@ export function LogViewer() {
             />
           )}
 
-          {viewMode === "trace" && traceField && (
+          {viewMode === 'trace' && traceField && (
             <RequestTrace
               logs={filteredLogs}
               traceField={traceField}
@@ -895,10 +935,7 @@ export function LogViewer() {
       )}
 
       {/* Keyboard shortcuts dialog */}
-      <KeyboardShortcuts
-        open={showShortcuts}
-        onOpenChange={setShowShortcuts}
-      />
+      <KeyboardShortcuts open={showShortcuts} onOpenChange={setShowShortcuts} />
     </div>
-  )
+  );
 }
