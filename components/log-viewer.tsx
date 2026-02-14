@@ -12,6 +12,7 @@ import { LogInput, LogSourceBadge } from "@/components/log-input"
 import { LogToolbar } from "@/components/log-toolbar"
 import { LogTable } from "@/components/log-table"
 import { LogStats } from "@/components/log-stats"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export function LogViewer() {
   const [logs, setLogs] = useState<PinoLogEntry[]>([])
@@ -166,11 +167,14 @@ export function LogViewer() {
             </>
           )}
         </div>
-        {hasLogs && (
-          <div className="w-48">
-            <LogStats logs={logs} />
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {hasLogs && (
+            <div className="w-48">
+              <LogStats logs={logs} />
+            </div>
+          )}
+          <ThemeToggle />
+        </div>
       </header>
 
       {/* Input screen or log viewer */}
