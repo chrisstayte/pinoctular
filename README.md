@@ -232,6 +232,7 @@ While viewing a watched source, a **Follow** button appears in the header. When 
 | Variable | Required | Description |
 |---|---|---|
 | `WATCH_PATHS` | No | JSON array of `{"name":"...","path":"..."}` objects defining folders to watch. Omit to disable watching entirely. |
+| `NEXT_PUBLIC_ENABLE_WATCH` | No | Set to `true` to enable watch API probing and real-time streaming UI. If unset/false, the frontend performs zero watch API/WebSocket checks. |
 | `NEXT_PUBLIC_APP_VERSION` | No | Version string displayed in the app header. |
 
 ## Deployment

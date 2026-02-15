@@ -9,14 +9,25 @@ interface WatchConfig {
   loading: boolean
 }
 
+const WATCH_FEATURE_ENABLED = process.env.NEXT_PUBLIC_ENABLE_WATCH === 'true'
+
 export function useWatchConfig(): WatchConfig {
   const [state, setState] = useState<WatchConfig>({
     available: false,
     folders: [],
-    loading: true,
+    loading: WATCH_FEATURE_ENABLED,
   })
 
   useEffect(() => {
+    if (!WATCH_FEATURE_ENABLED) {
+      setState({
+        available: false,
+        folders: [],
+        loading: false,
+      })
+      return
+    }
+
     let cancelled = false
     let retries = 0
     const maxRetries = 5
