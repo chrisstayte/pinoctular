@@ -11,12 +11,14 @@ import {
   type FieldFilter,
   type LogSource,
   type ParseLogDiagnostics,
+  type TableColumn,
   LEVEL_BG_COLORS,
   getLevelName,
   tagLogsWithSource,
   matchesFieldFilter,
   detectTraceField,
   exportAsJSON,
+  DEFAULT_VISIBLE_COLUMNS,
 } from '@/lib/log-types';
 
 const ALL_LEVELS: LogLevel[] = [
@@ -43,6 +45,7 @@ import { DiffView } from '@/components/diff-view';
 import { RequestTrace } from '@/components/request-trace';
 import { KeyboardShortcuts } from '@/components/keyboard-shortcuts';
 import { StreamControls } from '@/components/stream-controls';
+import { ColumnToggle } from '@/components/column-toggle';
 import { useWatchConfig } from '@/hooks/use-watch-config';
 import { useLogStream } from '@/hooks/use-log-stream';
 import { fetchLogs, type WatchedFolder } from '@/lib/watch-api';
@@ -157,6 +160,9 @@ export function LogViewer() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [panels, setPanels] = useState<Set<PanelToggle>>(new Set(['timeline']));
+  const [visibleColumns, setVisibleColumns] = useState<Set<TableColumn>>(
+    () => new Set(DEFAULT_VISIBLE_COLUMNS)
+  );
   const [parseDiagnostics, setParseDiagnostics] = useState<
     Record<string, ParseLogDiagnostics>
   >({});
@@ -564,6 +570,19 @@ export function LogViewer() {
     });
   }, []);
 
+  const toggleColumn = useCallback((column: TableColumn) => {
+    setVisibleColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(column)) {
+        // Don't allow hiding all columns — keep at least one
+        if (next.size > 1) next.delete(column);
+      } else {
+        next.add(column);
+      }
+      return next;
+    });
+  }, []);
+
   const handleJumpToEntry = useCallback((entry: SourcedLogEntry) => {
     setViewMode('table');
     setJumpToKey(entry.__key);
@@ -585,11 +604,13 @@ export function LogViewer() {
         contextLines?: number;
         showBookmarksOnly?: boolean;
         panels?: PanelToggle[];
+        visibleColumns?: TableColumn[];
       };
       if (parsed.viewMode) setViewMode(parsed.viewMode);
       if (typeof parsed.contextLines === 'number') setContextLines(parsed.contextLines);
       if (typeof parsed.showBookmarksOnly === 'boolean') setShowBookmarksOnly(parsed.showBookmarksOnly);
       if (parsed.panels?.length) setPanels(new Set(parsed.panels));
+      if (parsed.visibleColumns?.length) setVisibleColumns(new Set(parsed.visibleColumns));
     } catch {
       // ignore invalid persisted state
     }
@@ -603,9 +624,10 @@ export function LogViewer() {
         contextLines,
         showBookmarksOnly,
         panels: Array.from(panels),
+        visibleColumns: Array.from(visibleColumns),
       })
     );
-  }, [viewMode, contextLines, showBookmarksOnly, panels]);
+  }, [viewMode, contextLines, showBookmarksOnly, panels, visibleColumns]);
 
   // ─── Keyboard shortcuts ────────────────────────────────────────
   useEffect(() => {
@@ -645,6 +667,26 @@ export function LogViewer() {
       }
 
       if (isInput) return;
+
+      // Shift+X = clear all filters
+      if (e.key === 'X' && e.shiftKey) {
+        e.preventDefault();
+        setSearch('');
+        setIsRegex(false);
+        setActiveLevels(new Set(ALL_LEVELS));
+        const mods = new Set<string>();
+        for (const src of sources) {
+          for (const log of src.logs) {
+            if (log.module) mods.add(log.module as string);
+          }
+        }
+        setActiveModules(mods);
+        setActiveSources(new Set(sources.map((s) => s.name)));
+        setFieldFilters([]);
+        setTimeRange(null);
+        setShowBookmarksOnly(false);
+        return;
+      }
 
       // j/k navigation
       if (e.key === 'j' || e.key === 'k') {
@@ -728,6 +770,8 @@ export function LogViewer() {
     toggleLevel,
     debouncedSearch,
     showShortcuts,
+    sources,
+    search,
   ]);
 
   const parseSummary = useMemo(() => {
@@ -1205,6 +1249,13 @@ export function LogViewer() {
               </Button>
             </div>
 
+            {/* Column toggle */}
+            <ColumnToggle
+              visibleColumns={visibleColumns}
+              onToggleColumn={toggleColumn}
+              hasMultipleSources={sourceNames.length > 1}
+            />
+
             {/* Bookmarks toggle */}
             <Button
               variant={showBookmarksOnly ? 'secondary' : 'ghost'}
@@ -1330,6 +1381,7 @@ export function LogViewer() {
               onJumpHandled={() => setJumpToKey(null)}
               autoScroll={activeWatchFolder !== null && autoScroll}
               onUserScroll={() => setAutoScroll(false)}
+              visibleColumns={visibleColumns}
             />
           )}
 
