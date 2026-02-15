@@ -19,14 +19,7 @@ export function useWatchConfig(): WatchConfig {
   })
 
   useEffect(() => {
-    if (!WATCH_FEATURE_ENABLED) {
-      setState({
-        available: false,
-        folders: [],
-        loading: false,
-      })
-      return
-    }
+    if (!WATCH_FEATURE_ENABLED) return
 
     let cancelled = false
     let retries = 0

@@ -1,12 +1,13 @@
 services:
   pinoctular:
+    build: .
     container_name: pinoctular
     image: ghcr.io/chrisstayte/pinoctular:latest
     ports:
       - 1738:80
     restart: unless-stopped
     # Uncomment below to enable watched folders
-    # environment:
-    #   - WATCH_PATHS=[{"name":"My App","path":"/test-logs"}]
-    # volumes:
-    #   - ./test-logs:/test-logs
+    environment:
+      - WATCH_PATHS=[{"name":"My App","path":"/test-logs"}]
+    volumes:
+      - ./test-logs:/test-logs
