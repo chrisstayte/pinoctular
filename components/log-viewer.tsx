@@ -11,12 +11,22 @@ import {
   type FieldFilter,
   type LogSource,
   type ParseLogDiagnostics,
+  LEVEL_BG_COLORS,
   getLevelName,
   tagLogsWithSource,
   matchesFieldFilter,
   detectTraceField,
   exportAsJSON,
 } from '@/lib/log-types';
+
+const ALL_LEVELS: LogLevel[] = [
+  'trace',
+  'debug',
+  'info',
+  'warn',
+  'error',
+  'fatal',
+];
 import {
   LogInput,
   LogSourceBadge,
@@ -833,6 +843,116 @@ export function LogViewer() {
                 />
               </div>
             </div>
+
+            {/* Level filters */}
+            <div className="space-y-2">
+              <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                Level
+              </h3>
+              <div className="flex items-center gap-1 mb-1.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`h-5 text-[10px] px-1.5 ${
+                    activeLevels.size === ALL_LEVELS.length
+                      ? 'text-foreground'
+                      : 'text-muted-foreground'
+                  }`}
+                  onClick={() => setAllLevels([...ALL_LEVELS])}
+                >
+                  All
+                </Button>
+                <span className="text-muted-foreground/30 text-[10px]">
+                  /
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`h-5 text-[10px] px-1.5 ${
+                    activeLevels.size === 0
+                      ? 'text-foreground'
+                      : 'text-muted-foreground'
+                  }`}
+                  onClick={() => setAllLevels([])}
+                >
+                  None
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {ALL_LEVELS.map((level) => {
+                  const active = activeLevels.has(level);
+                  return (
+                    <button
+                      key={level}
+                      onClick={() => toggleLevel(level)}
+                      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+                        active
+                          ? LEVEL_BG_COLORS[level]
+                          : 'bg-transparent border-border text-muted-foreground/50 opacity-50'
+                      }`}
+                    >
+                      {level}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Module filters */}
+            {modules.length > 1 && (
+              <div className="space-y-2">
+                <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                  Module
+                </h3>
+                <div className="flex items-center gap-1 mb-1.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-5 text-[10px] px-1.5 ${
+                      activeModules.size === modules.length
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setAllModules([...modules])}
+                  >
+                    All
+                  </Button>
+                  <span className="text-muted-foreground/30 text-[10px]">
+                    /
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-5 text-[10px] px-1.5 ${
+                      activeModules.size === 0
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setAllModules([])}
+                  >
+                    None
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {modules.map((mod) => {
+                    const active = activeModules.has(mod);
+                    return (
+                      <button
+                        key={mod}
+                        onClick={() => toggleModule(mod)}
+                        className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium transition-all cursor-pointer ${
+                          active
+                            ? 'bg-primary/10 text-primary border-primary/20'
+                            : 'bg-transparent border-border text-muted-foreground/50 opacity-50'
+                        }`}
+                      >
+                        {mod}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* View mode */}
             <div className="space-y-2">
