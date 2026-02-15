@@ -9,6 +9,7 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
+ENV NEXT_PUBLIC_ENABLE_WATCH=true
 RUN pnpm build
 
 # Stage 2: Install server dependencies
