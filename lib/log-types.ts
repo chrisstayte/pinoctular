@@ -168,6 +168,22 @@ export type SortDirection = 'asc' | 'desc'
 
 export const CORE_FIELDS = ['level', 'time', 'pid', 'hostname', 'msg', 'module'] as const
 
+// ─── Column visibility ──────────────────────────────────────────────
+
+export type TableColumn = 'time' | 'level' | 'source' | 'module' | 'message'
+
+export const ALL_COLUMNS: TableColumn[] = ['time', 'level', 'source', 'module', 'message']
+
+export const COLUMN_LABELS: Record<TableColumn, string> = {
+  time: 'Time',
+  level: 'Level',
+  source: 'Source',
+  module: 'Module',
+  message: 'Message',
+}
+
+export const DEFAULT_VISIBLE_COLUMNS: TableColumn[] = ['time', 'level', 'module', 'message']
+
 // ─── Multi-source helpers ────────────────────────────────────────────
 
 export interface LogSource {

@@ -78,7 +78,8 @@ export function LogInput({
   const readFileText = useCallback((file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (event) => resolve((event.target?.result as string) ?? '');
+      reader.onload = (event) =>
+        resolve((event.target?.result as string) ?? '');
       reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
       reader.readAsText(file);
     });
@@ -139,7 +140,7 @@ export function LogInput({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 px-4">
-      <div className="text-center mb-2">
+      <div className="text-center mb-2 mt-8">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground mb-2 text-balance">
           Pinoctular
         </h1>
@@ -149,30 +150,35 @@ export function LogInput({
         </p>
       </div>
 
-      {watchAvailable && watchFolders && watchFolders.length > 0 && onWatchFolderSelect && (
-        <div className="w-full max-w-lg space-y-3">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Eye className="h-3.5 w-3.5" />
-            <span className="uppercase tracking-wider font-medium">Watched Folders</span>
+      {watchAvailable &&
+        watchFolders &&
+        watchFolders.length > 0 &&
+        onWatchFolderSelect && (
+          <div className="w-full max-w-lg space-y-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Eye className="h-3.5 w-3.5" />
+              <span className="uppercase tracking-wider font-medium">
+                Watched Folders
+              </span>
+            </div>
+            <div className="grid gap-2">
+              {watchFolders.map((folder) => (
+                <WatchedFolderCard
+                  key={folder.name}
+                  folder={folder}
+                  onSelect={onWatchFolderSelect}
+                />
+              ))}
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground uppercase tracking-wider">
+                or
+              </span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
           </div>
-          <div className="grid gap-2">
-            {watchFolders.map((folder) => (
-              <WatchedFolderCard
-                key={folder.name}
-                folder={folder}
-                onSelect={onWatchFolderSelect}
-              />
-            ))}
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-xs text-muted-foreground uppercase tracking-wider">
-              or
-            </span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
-        </div>
-      )}
+        )}
 
       {parseWarning && (
         <div className="w-full max-w-2xl rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 flex items-start gap-2">

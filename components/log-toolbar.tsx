@@ -170,8 +170,8 @@ export const LogToolbar = memo<LogToolbarProps>(function LogToolbar({
         </DropdownMenu>
       </div>
 
-      {/* Filter row */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Filter row — hidden on mobile, shown in sheet instead */}
+      <div className="hidden lg:flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums ml-auto order-last">
           {filteredCount === totalCount
             ? `${totalCount.toLocaleString()} logs`

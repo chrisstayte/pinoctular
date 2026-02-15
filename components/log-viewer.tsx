@@ -11,12 +11,24 @@ import {
   type FieldFilter,
   type LogSource,
   type ParseLogDiagnostics,
+  type TableColumn,
+  LEVEL_BG_COLORS,
   getLevelName,
   tagLogsWithSource,
   matchesFieldFilter,
   detectTraceField,
   exportAsJSON,
+  DEFAULT_VISIBLE_COLUMNS,
 } from '@/lib/log-types';
+
+const ALL_LEVELS: LogLevel[] = [
+  'trace',
+  'debug',
+  'info',
+  'warn',
+  'error',
+  'fatal',
+];
 import {
   LogInput,
   LogSourceBadge,
@@ -33,6 +45,7 @@ import { DiffView } from '@/components/diff-view';
 import { RequestTrace } from '@/components/request-trace';
 import { KeyboardShortcuts } from '@/components/keyboard-shortcuts';
 import { StreamControls } from '@/components/stream-controls';
+import { ColumnToggle } from '@/components/column-toggle';
 import { useWatchConfig } from '@/hooks/use-watch-config';
 import { useLogStream } from '@/hooks/use-log-stream';
 import { fetchLogs, type WatchedFolder } from '@/lib/watch-api';
@@ -147,6 +160,9 @@ export function LogViewer() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [panels, setPanels] = useState<Set<PanelToggle>>(new Set(['timeline']));
+  const [visibleColumns, setVisibleColumns] = useState<Set<TableColumn>>(
+    () => new Set(DEFAULT_VISIBLE_COLUMNS)
+  );
   const [parseDiagnostics, setParseDiagnostics] = useState<
     Record<string, ParseLogDiagnostics>
   >({});
@@ -554,6 +570,19 @@ export function LogViewer() {
     });
   }, []);
 
+  const toggleColumn = useCallback((column: TableColumn) => {
+    setVisibleColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(column)) {
+        // Don't allow hiding all columns — keep at least one
+        if (next.size > 1) next.delete(column);
+      } else {
+        next.add(column);
+      }
+      return next;
+    });
+  }, []);
+
   const handleJumpToEntry = useCallback((entry: SourcedLogEntry) => {
     setViewMode('table');
     setJumpToKey(entry.__key);
@@ -575,11 +604,13 @@ export function LogViewer() {
         contextLines?: number;
         showBookmarksOnly?: boolean;
         panels?: PanelToggle[];
+        visibleColumns?: TableColumn[];
       };
       if (parsed.viewMode) setViewMode(parsed.viewMode);
       if (typeof parsed.contextLines === 'number') setContextLines(parsed.contextLines);
       if (typeof parsed.showBookmarksOnly === 'boolean') setShowBookmarksOnly(parsed.showBookmarksOnly);
       if (parsed.panels?.length) setPanels(new Set(parsed.panels));
+      if (parsed.visibleColumns?.length) setVisibleColumns(new Set(parsed.visibleColumns));
     } catch {
       // ignore invalid persisted state
     }
@@ -593,9 +624,10 @@ export function LogViewer() {
         contextLines,
         showBookmarksOnly,
         panels: Array.from(panels),
+        visibleColumns: Array.from(visibleColumns),
       })
     );
-  }, [viewMode, contextLines, showBookmarksOnly, panels]);
+  }, [viewMode, contextLines, showBookmarksOnly, panels, visibleColumns]);
 
   // ─── Keyboard shortcuts ────────────────────────────────────────
   useEffect(() => {
@@ -635,6 +667,26 @@ export function LogViewer() {
       }
 
       if (isInput) return;
+
+      // Shift+X = clear all filters
+      if (e.key === 'X' && e.shiftKey) {
+        e.preventDefault();
+        setSearch('');
+        setIsRegex(false);
+        setActiveLevels(new Set(ALL_LEVELS));
+        const mods = new Set<string>();
+        for (const src of sources) {
+          for (const log of src.logs) {
+            if (log.module) mods.add(log.module as string);
+          }
+        }
+        setActiveModules(mods);
+        setActiveSources(new Set(sources.map((s) => s.name)));
+        setFieldFilters([]);
+        setTimeRange(null);
+        setShowBookmarksOnly(false);
+        return;
+      }
 
       // j/k navigation
       if (e.key === 'j' || e.key === 'k') {
@@ -718,6 +770,8 @@ export function LogViewer() {
     toggleLevel,
     debouncedSearch,
     showShortcuts,
+    sources,
+    search,
   ]);
 
   const parseSummary = useMemo(() => {
@@ -833,6 +887,116 @@ export function LogViewer() {
                 />
               </div>
             </div>
+
+            {/* Level filters */}
+            <div className="space-y-2">
+              <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                Level
+              </h3>
+              <div className="flex items-center gap-1 mb-1.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`h-5 text-[10px] px-1.5 ${
+                    activeLevels.size === ALL_LEVELS.length
+                      ? 'text-foreground'
+                      : 'text-muted-foreground'
+                  }`}
+                  onClick={() => setAllLevels([...ALL_LEVELS])}
+                >
+                  All
+                </Button>
+                <span className="text-muted-foreground/30 text-[10px]">
+                  /
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`h-5 text-[10px] px-1.5 ${
+                    activeLevels.size === 0
+                      ? 'text-foreground'
+                      : 'text-muted-foreground'
+                  }`}
+                  onClick={() => setAllLevels([])}
+                >
+                  None
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {ALL_LEVELS.map((level) => {
+                  const active = activeLevels.has(level);
+                  return (
+                    <button
+                      key={level}
+                      onClick={() => toggleLevel(level)}
+                      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+                        active
+                          ? LEVEL_BG_COLORS[level]
+                          : 'bg-transparent border-border text-muted-foreground/50 opacity-50'
+                      }`}
+                    >
+                      {level}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Module filters */}
+            {modules.length > 1 && (
+              <div className="space-y-2">
+                <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                  Module
+                </h3>
+                <div className="flex items-center gap-1 mb-1.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-5 text-[10px] px-1.5 ${
+                      activeModules.size === modules.length
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setAllModules([...modules])}
+                  >
+                    All
+                  </Button>
+                  <span className="text-muted-foreground/30 text-[10px]">
+                    /
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-5 text-[10px] px-1.5 ${
+                      activeModules.size === 0
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setAllModules([])}
+                  >
+                    None
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {modules.map((mod) => {
+                    const active = activeModules.has(mod);
+                    return (
+                      <button
+                        key={mod}
+                        onClick={() => toggleModule(mod)}
+                        className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium transition-all cursor-pointer ${
+                          active
+                            ? 'bg-primary/10 text-primary border-primary/20'
+                            : 'bg-transparent border-border text-muted-foreground/50 opacity-50'
+                        }`}
+                      >
+                        {mod}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* View mode */}
             <div className="space-y-2">
@@ -1085,6 +1249,13 @@ export function LogViewer() {
               </Button>
             </div>
 
+            {/* Column toggle */}
+            <ColumnToggle
+              visibleColumns={visibleColumns}
+              onToggleColumn={toggleColumn}
+              hasMultipleSources={sourceNames.length > 1}
+            />
+
             {/* Bookmarks toggle */}
             <Button
               variant={showBookmarksOnly ? 'secondary' : 'ghost'}
@@ -1210,6 +1381,7 @@ export function LogViewer() {
               onJumpHandled={() => setJumpToKey(null)}
               autoScroll={activeWatchFolder !== null && autoScroll}
               onUserScroll={() => setAutoScroll(false)}
+              visibleColumns={visibleColumns}
             />
           )}
 

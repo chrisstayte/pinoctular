@@ -19,6 +19,7 @@ const shortcuts = [
   { keys: ["Enter"], desc: "Expand/collapse selected row" },
   { keys: ["/"], desc: "Focus search" },
   { keys: ["Escape"], desc: "Clear search / close panels" },
+  { keys: ["Shift", "X"], desc: "Clear all filters" },
   { keys: ["b"], desc: "Bookmark selected row" },
   { keys: ["c"], desc: "Copy selected row as JSON" },
   { keys: ["e"], desc: "Export filtered logs" },

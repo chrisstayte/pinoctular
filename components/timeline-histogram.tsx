@@ -64,7 +64,7 @@ export const TimelineHistogram = memo(function TimelineHistogram({
     return clientX - rect.left;
   };
 
-  const getRangeIndices = (): [number, number] | null => {
+  const rangeIndices = useMemo((): [number, number] | null => {
     if (!timeRange) return null;
     let startIdx = -1;
     let endIdx = -1;
@@ -74,9 +74,23 @@ export const TimelineHistogram = memo(function TimelineHistogram({
     }
     if (startIdx === -1 || endIdx === -1) return null;
     return [startIdx, endIdx];
-  };
+  }, [timeRange, buckets]);
 
-  const rangeIndices = getRangeIndices();
+  const isTouchDevice = useRef(false);
+
+  // Refs for values accessed inside the drag effect's event handlers.
+  // This lets us keep the effect dependency list minimal (only dragState)
+  // while still reading current values inside the handlers.
+  const dragStateRef = useRef(dragState);
+  dragStateRef.current = dragState;
+  const rangeIndicesRef = useRef(rangeIndices);
+  rangeIndicesRef.current = rangeIndices;
+  const bucketsRef = useRef(buckets);
+  bucketsRef.current = buckets;
+  const timeRangeRef = useRef(timeRange);
+  timeRangeRef.current = timeRange;
+  const onTimeRangeChangeRef = useRef(onTimeRangeChange);
+  onTimeRangeChangeRef.current = onTimeRangeChange;
 
   const isNearEdge = (clientX: number): 'start' | 'end' | null => {
     if (!rangeIndices || !containerRef.current) return null;
@@ -84,7 +98,7 @@ export const TimelineHistogram = memo(function TimelineHistogram({
     const startPx = (rangeIndices[0] / buckets.length) * rect.width;
     const endPx = ((rangeIndices[1] + 1) / buckets.length) * rect.width;
     const x = clientX - rect.left;
-    const threshold = 8;
+    const threshold = isTouchDevice.current ? 24 : 8;
     if (Math.abs(x - startPx) < threshold) return 'start';
     if (Math.abs(x - endPx) < threshold) return 'end';
     return null;
@@ -96,7 +110,8 @@ export const TimelineHistogram = memo(function TimelineHistogram({
     const startPx = (rangeIndices[0] / buckets.length) * rect.width;
     const endPx = ((rangeIndices[1] + 1) / buckets.length) * rect.width;
     const x = clientX - rect.left;
-    return x >= startPx + 8 && x <= endPx - 8;
+    const pad = isTouchDevice.current ? 24 : 8;
+    return x >= startPx + pad && x <= endPx - pad;
   };
 
   const getCursor = (clientX: number): string => {
@@ -121,15 +136,14 @@ export const TimelineHistogram = memo(function TimelineHistogram({
     }
   };
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const edge = isNearEdge(e.clientX);
-    const index = getIndexFromX(e.clientX);
+  const beginDrag = (clientX: number) => {
+    const edge = isNearEdge(clientX);
+    const index = getIndexFromX(clientX);
 
     if (edge === 'start' && rangeIndices) {
       setDragState({
         type: 'drag-start',
-        startX: e.clientX,
+        startX: clientX,
         startIndex: rangeIndices[0],
         currentIndex: rangeIndices[0],
         originalRange: timeRange!,
@@ -137,15 +151,15 @@ export const TimelineHistogram = memo(function TimelineHistogram({
     } else if (edge === 'end' && rangeIndices) {
       setDragState({
         type: 'drag-end',
-        startX: e.clientX,
+        startX: clientX,
         startIndex: rangeIndices[1],
         currentIndex: rangeIndices[1],
         originalRange: timeRange!,
       });
-    } else if (isInsideRange(e.clientX) && rangeIndices) {
+    } else if (isInsideRange(clientX) && rangeIndices) {
       setDragState({
         type: 'drag-range',
-        startX: e.clientX,
+        startX: clientX,
         startIndex: index,
         currentIndex: index,
         originalRange: timeRange!,
@@ -154,90 +168,120 @@ export const TimelineHistogram = memo(function TimelineHistogram({
     } else {
       setDragState({
         type: 'selecting',
-        startX: e.clientX,
+        startX: clientX,
         startIndex: index,
         currentIndex: index,
       });
     }
   };
 
-  // Global mouse events for drag operations
-  useEffect(() => {
-    if (!dragState) return;
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isTouchDevice.current = false;
+    beginDrag(e.clientX);
+  };
 
-    const handleGlobalMouseMove = (e: MouseEvent) => {
-      const index = getIndexFromX(e.clientX);
-      setHoverX(getRelativeX(e.clientX));
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    isTouchDevice.current = true;
+    const touch = e.touches[0];
+    beginDrag(touch.clientX);
+  };
+
+  // Global mouse/touch events for drag operations.
+  // Only depends on whether a drag is active (boolean) to avoid
+  // re-registering listeners on every state change during drag.
+  const isDragging = dragState !== null;
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleDragMove = (clientX: number) => {
+      const index = getIndexFromX(clientX);
+      setHoverX(getRelativeX(clientX));
       setHoverIndex(index);
 
       setDragState((prev) => {
         if (!prev) return null;
-        const updated = { ...prev, currentIndex: index };
-
-        if (prev.type === 'selecting') {
-          const start = Math.min(prev.startIndex, index);
-          const end = Math.max(prev.startIndex, index);
-          onTimeRangeChange([buckets[start].startTime, buckets[end].endTime]);
-        } else if (prev.type === 'drag-start' && rangeIndices) {
-          const newStart = Math.min(index, rangeIndices[1]);
-          onTimeRangeChange([
-            buckets[newStart].startTime,
-            buckets[rangeIndices[1]].endTime,
-          ]);
-        } else if (prev.type === 'drag-end' && rangeIndices) {
-          const newEnd = Math.max(index, rangeIndices[0]);
-          onTimeRangeChange([
-            buckets[rangeIndices[0]].startTime,
-            buckets[newEnd].endTime,
-          ]);
-        } else if (
-          prev.type === 'drag-range' &&
-          rangeIndices &&
-          prev.dragOffsetIndex !== undefined
-        ) {
-          const rangeLen = rangeIndices[1] - rangeIndices[0];
-          let newStart = index - prev.dragOffsetIndex;
-          newStart = Math.max(
-            0,
-            Math.min(newStart, buckets.length - 1 - rangeLen)
-          );
-          const newEnd = newStart + rangeLen;
-          onTimeRangeChange([
-            buckets[newStart].startTime,
-            buckets[newEnd].endTime,
-          ]);
-        }
-
-        return updated;
+        return { ...prev, currentIndex: index };
       });
+
+      // Read current values from refs to avoid stale closures
+      const ds = dragStateRef.current;
+      const ri = rangeIndicesRef.current;
+      const b = bucketsRef.current;
+      const onChange = onTimeRangeChangeRef.current;
+
+      if (!ds) return;
+
+      if (ds.type === 'selecting') {
+        const start = Math.min(ds.startIndex, index);
+        const end = Math.max(ds.startIndex, index);
+        onChange([b[start].startTime, b[end].endTime]);
+      } else if (ds.type === 'drag-start' && ri) {
+        const newStart = Math.min(index, ri[1]);
+        onChange([b[newStart].startTime, b[ri[1]].endTime]);
+      } else if (ds.type === 'drag-end' && ri) {
+        const newEnd = Math.max(index, ri[0]);
+        onChange([b[ri[0]].startTime, b[newEnd].endTime]);
+      } else if (
+        ds.type === 'drag-range' &&
+        ri &&
+        ds.dragOffsetIndex !== undefined
+      ) {
+        const rangeLen = ri[1] - ri[0];
+        let newStart = index - ds.dragOffsetIndex;
+        newStart = Math.max(0, Math.min(newStart, b.length - 1 - rangeLen));
+        const newEnd = newStart + rangeLen;
+        onChange([b[newStart].startTime, b[newEnd].endTime]);
+      }
     };
 
-    const handleGlobalMouseUp = () => {
-      if (
-        dragState.type === 'selecting' &&
-        dragState.startIndex === dragState.currentIndex
-      ) {
-        const bucket = buckets[dragState.startIndex];
+    const handleDragEnd = () => {
+      const ds = dragStateRef.current;
+      const tr = timeRangeRef.current;
+      const b = bucketsRef.current;
+      const onChange = onTimeRangeChangeRef.current;
+
+      if (ds && ds.type === 'selecting' && ds.startIndex === ds.currentIndex) {
+        const bucket = b[ds.startIndex];
         if (
-          timeRange &&
-          timeRange[0] === bucket.startTime &&
-          timeRange[1] === bucket.endTime
+          tr &&
+          tr[0] === bucket.startTime &&
+          tr[1] === bucket.endTime
         ) {
-          onTimeRangeChange(null);
+          onChange(null);
         } else {
-          onTimeRangeChange([bucket.startTime, bucket.endTime]);
+          onChange([bucket.startTime, bucket.endTime]);
         }
       }
       setDragState(null);
     };
 
+    const handleGlobalMouseMove = (e: MouseEvent) => handleDragMove(e.clientX);
+    const handleGlobalMouseUp = () => handleDragEnd();
+    const handleGlobalTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      e.preventDefault();
+      handleDragMove(e.touches[0].clientX);
+    };
+    const handleGlobalTouchEnd = () => handleDragEnd();
+
     document.addEventListener('mousemove', handleGlobalMouseMove);
     document.addEventListener('mouseup', handleGlobalMouseUp);
+    document.addEventListener('touchmove', handleGlobalTouchMove, {
+      passive: false,
+    });
+    document.addEventListener('touchend', handleGlobalTouchEnd);
+    document.addEventListener('touchcancel', handleGlobalTouchEnd);
     return () => {
       document.removeEventListener('mousemove', handleGlobalMouseMove);
       document.removeEventListener('mouseup', handleGlobalMouseUp);
+      document.removeEventListener('touchmove', handleGlobalTouchMove);
+      document.removeEventListener('touchend', handleGlobalTouchEnd);
+      document.removeEventListener('touchcancel', handleGlobalTouchEnd);
     };
-  }, [dragState, buckets, timeRange, rangeIndices, onTimeRangeChange]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDragging]);
 
   // Early return after all hooks
   if (buckets.length <= 1) return null;
@@ -290,10 +334,11 @@ export const TimelineHistogram = memo(function TimelineHistogram({
       {/* Histogram area with overlays */}
       <div
         ref={containerRef}
-        className="relative h-12"
+        className="relative h-12 touch-none"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onMouseDown={handleMouseDown}
+        onTouchStart={handleTouchStart}
       >
         {/* Bars */}
         <div className="absolute inset-0 flex items-end gap-px">
@@ -361,10 +406,10 @@ export const TimelineHistogram = memo(function TimelineHistogram({
                 transform: 'translateX(-50%)',
               }}
             >
-              <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 left-1/2 w-3 h-6 rounded-sm bg-primary border border-primary-foreground/20 shadow-md flex items-center justify-center">
+              <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 left-1/2 w-4 h-8 rounded-sm bg-primary border border-primary-foreground/20 shadow-md flex items-center justify-center">
                 <div className="flex gap-px">
-                  <div className="w-px h-2 bg-primary-foreground/50 rounded-full" />
-                  <div className="w-px h-2 bg-primary-foreground/50 rounded-full" />
+                  <div className="w-px h-2.5 bg-primary-foreground/50 rounded-full" />
+                  <div className="w-px h-2.5 bg-primary-foreground/50 rounded-full" />
                 </div>
               </div>
             </div>
@@ -377,10 +422,10 @@ export const TimelineHistogram = memo(function TimelineHistogram({
                 transform: 'translateX(-50%)',
               }}
             >
-              <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 left-1/2 w-3 h-6 rounded-sm bg-primary border border-primary-foreground/20 shadow-md flex items-center justify-center">
+              <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 left-1/2 w-4 h-8 rounded-sm bg-primary border border-primary-foreground/20 shadow-md flex items-center justify-center">
                 <div className="flex gap-px">
-                  <div className="w-px h-2 bg-primary-foreground/50 rounded-full" />
-                  <div className="w-px h-2 bg-primary-foreground/50 rounded-full" />
+                  <div className="w-px h-2.5 bg-primary-foreground/50 rounded-full" />
+                  <div className="w-px h-2.5 bg-primary-foreground/50 rounded-full" />
                 </div>
               </div>
             </div>

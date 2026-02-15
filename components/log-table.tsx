@@ -17,6 +17,7 @@ import {
   type SourcedLogEntry,
   type SortField,
   type SortDirection,
+  type TableColumn,
   getLevelName,
   formatTimestamp,
   formatFullTimestamp,
@@ -45,6 +46,7 @@ interface LogTableProps {
   onJumpHandled: () => void;
   autoScroll?: boolean;
   onUserScroll?: () => void;
+  visibleColumns: Set<TableColumn>;
 }
 
 function getEntryKey(entry: SourcedLogEntry): string {
@@ -106,6 +108,7 @@ const LogRow = memo(function LogRow({
   virtualIndex,
   measureRef,
   showGroupSeparator,
+  visibleColumns,
 }: {
   entry: SourcedLogEntry;
   index: number;
@@ -120,6 +123,7 @@ const LogRow = memo(function LogRow({
   virtualIndex: number;
   measureRef: (node: HTMLTableSectionElement | null) => void;
   showGroupSeparator: boolean;
+  visibleColumns: Set<TableColumn>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -214,26 +218,30 @@ const LogRow = memo(function LogRow({
         </td>
 
         {/* Timestamp */}
-        <td className="px-2 py-1.5 whitespace-nowrap">
-          <span
-            className="text-xs tabular-nums text-muted-foreground font-mono"
-            title={formatFullTimestamp(entry.time)}
-          >
-            {formatTimestamp(entry.time)}
-          </span>
-        </td>
+        {visibleColumns.has('time') && (
+          <td className="px-2 py-1.5 whitespace-nowrap">
+            <span
+              className="text-xs tabular-nums text-muted-foreground font-mono"
+              title={formatFullTimestamp(entry.time)}
+            >
+              {formatTimestamp(entry.time)}
+            </span>
+          </td>
+        )}
 
         {/* Level */}
-        <td className="px-2 py-1.5 w-16">
-          <span
-            className={`inline-flex items-center rounded border px-1.5 py-0 text-[10px] font-bold uppercase tracking-wider ${LEVEL_BG_COLORS[level]}`}
-          >
-            {level}
-          </span>
-        </td>
+        {visibleColumns.has('level') && (
+          <td className="px-2 py-1.5 w-16">
+            <span
+              className={`inline-flex items-center rounded border px-1.5 py-0 text-[10px] font-bold uppercase tracking-wider ${LEVEL_BG_COLORS[level]}`}
+            >
+              {level}
+            </span>
+          </td>
+        )}
 
-        {/* Source (only when multiple sources) */}
-        {showSource && (
+        {/* Source (only when multiple sources and column visible) */}
+        {showSource && visibleColumns.has('source') && (
           <td className="px-2 py-1.5 w-24">
             <span
               className={`text-[10px] font-mono truncate ${sourceColorClass}`}
@@ -244,29 +252,33 @@ const LogRow = memo(function LogRow({
         )}
 
         {/* Module */}
-        <td className="px-2 py-1.5 w-28">
-          {entry.module && (
-            <span className="text-xs text-primary/80 font-mono">
-              {entry.module as string}
-            </span>
-          )}
-        </td>
-
-        {/* Message */}
-        <td className="px-2 py-1.5">
-          <div className="flex items-center gap-2">
-            <span
-              className={`text-xs font-mono ${LEVEL_COLORS[level]} leading-relaxed`}
-            >
-              {entry.msg || '—'}
-            </span>
-            {extraCount > 0 && (
-              <span className="text-[10px] text-muted-foreground/40 bg-secondary rounded px-1 py-0 shrink-0">
-                +{extraCount}
+        {visibleColumns.has('module') && (
+          <td className="px-2 py-1.5 w-28">
+            {entry.module && (
+              <span className="text-xs text-primary/80 font-mono">
+                {entry.module as string}
               </span>
             )}
-          </div>
-        </td>
+          </td>
+        )}
+
+        {/* Message */}
+        {visibleColumns.has('message') && (
+          <td className="px-2 py-1.5">
+            <div className="flex items-center gap-2">
+              <span
+                className={`text-xs font-mono ${LEVEL_COLORS[level]} leading-relaxed`}
+              >
+                {entry.msg || '—'}
+              </span>
+              {extraCount > 0 && (
+                <span className="text-[10px] text-muted-foreground/40 bg-secondary rounded px-1 py-0 shrink-0">
+                  +{extraCount}
+                </span>
+              )}
+            </div>
+          </td>
+        )}
 
         {/* Copy button */}
         <td className="pr-3 py-1.5 w-8">
@@ -288,7 +300,7 @@ const LogRow = memo(function LogRow({
       {expanded && (
         <tr className={`border-b border-border/50 ${LEVEL_ROW_COLORS[level]}`}>
           <td
-            colSpan={showSource ? 9 : 8}
+            colSpan={99}
             className="px-4 py-3 bg-secondary/30"
           >
             <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1">
@@ -387,6 +399,7 @@ export const LogTable = memo(function LogTable({
   onJumpHandled,
   autoScroll,
   onUserScroll,
+  visibleColumns,
 }: LogTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const showSource = sourceNames.length > 1;
@@ -569,33 +582,37 @@ export const LogTable = memo(function LogTable({
                 #
               </span>
             </th>
-            <th className="px-2 py-2">
-              <button
-                className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                onClick={() => onSort('time')}
-              >
-                Time{' '}
-                <SortIcon
-                  field="time"
-                  sortField={sortField}
-                  sortDirection={sortDirection}
-                />
-              </button>
-            </th>
-            <th className="px-2 py-2 w-16">
-              <button
-                className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                onClick={() => onSort('level')}
-              >
-                Level{' '}
-                <SortIcon
-                  field="level"
-                  sortField={sortField}
-                  sortDirection={sortDirection}
-                />
-              </button>
-            </th>
-            {showSource && (
+            {visibleColumns.has('time') && (
+              <th className="px-2 py-2">
+                <button
+                  className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                  onClick={() => onSort('time')}
+                >
+                  Time{' '}
+                  <SortIcon
+                    field="time"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                  />
+                </button>
+              </th>
+            )}
+            {visibleColumns.has('level') && (
+              <th className="px-2 py-2 w-16">
+                <button
+                  className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                  onClick={() => onSort('level')}
+                >
+                  Level{' '}
+                  <SortIcon
+                    field="level"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                  />
+                </button>
+              </th>
+            )}
+            {showSource && visibleColumns.has('source') && (
               <th className="px-2 py-2 w-24">
                 <button
                   className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
@@ -610,32 +627,36 @@ export const LogTable = memo(function LogTable({
                 </button>
               </th>
             )}
-            <th className="px-2 py-2 w-28">
-              <button
-                className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                onClick={() => onSort('module')}
-              >
-                Module{' '}
-                <SortIcon
-                  field="module"
-                  sortField={sortField}
-                  sortDirection={sortDirection}
-                />
-              </button>
-            </th>
-            <th className="px-2 py-2">
-              <button
-                className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                onClick={() => onSort('msg')}
-              >
-                Message{' '}
-                <SortIcon
-                  field="msg"
-                  sortField={sortField}
-                  sortDirection={sortDirection}
-                />
-              </button>
-            </th>
+            {visibleColumns.has('module') && (
+              <th className="px-2 py-2 w-28">
+                <button
+                  className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                  onClick={() => onSort('module')}
+                >
+                  Module{' '}
+                  <SortIcon
+                    field="module"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                  />
+                </button>
+              </th>
+            )}
+            {visibleColumns.has('message') && (
+              <th className="px-2 py-2">
+                <button
+                  className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                  onClick={() => onSort('msg')}
+                >
+                  Message{' '}
+                  <SortIcon
+                    field="msg"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                  />
+                </button>
+              </th>
+            )}
             <th className="pr-3 py-2 w-8" />
           </tr>
         </thead>
@@ -667,6 +688,7 @@ export const LogTable = memo(function LogTable({
               virtualIndex={virtualRow.index}
               measureRef={virtualizer.measureElement}
               showGroupSeparator={showSeparator}
+              visibleColumns={visibleColumns}
             />
           );
         })}
