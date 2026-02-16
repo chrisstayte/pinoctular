@@ -5,7 +5,7 @@ import {
   type SourcedLogEntry,
   type LogLevel,
   buildTimeline,
-  formatTimestamp,
+  formatGraphTimestamp,
 } from '@/lib/log-types';
 
 interface LevelTrendChartProps {
@@ -97,13 +97,15 @@ export const LevelTrendChart = memo(function LevelTrendChart({
         })}
       </svg>
 
-      <div className="flex justify-between">
-        <span className="text-[9px] text-muted-foreground font-mono">
-          {formatTimestamp(buckets[0].startTime)}
-        </span>
-        <span className="text-[9px] text-muted-foreground font-mono">
-          {formatTimestamp(buckets[buckets.length - 1].endTime)}
-        </span>
+      <div className="flex justify-between items-start mt-1">
+        <div className="font-mono text-muted-foreground">
+          <div className="text-[11px] font-medium">{formatGraphTimestamp(buckets[0].startTime).date}</div>
+          <div className="text-[10px]">{formatGraphTimestamp(buckets[0].startTime).time}</div>
+        </div>
+        <div className="font-mono text-muted-foreground text-right">
+          <div className="text-[11px] font-medium">{formatGraphTimestamp(buckets[buckets.length - 1].endTime).date}</div>
+          <div className="text-[10px]">{formatGraphTimestamp(buckets[buckets.length - 1].endTime).time}</div>
+        </div>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import {
   type SourcedLogEntry,
   type LogLevel,
   buildTimeline,
-  formatTimestamp,
+  formatGraphTimestamp,
 } from '@/lib/log-types';
 
 interface TimelineHistogramProps {
@@ -287,7 +287,7 @@ export const TimelineHistogram = memo(function TimelineHistogram({
   if (buckets.length <= 1) return null;
 
   const hoverBucket = hoverIndex !== null ? buckets[hoverIndex] : null;
-  const hoverTime = hoverBucket ? formatTimestamp(hoverBucket.startTime) : null;
+  const hoverLabel = hoverBucket ? formatGraphTimestamp(hoverBucket.startTime) : null;
 
   const selStartFrac = rangeIndices ? rangeIndices[0] / buckets.length : 0;
   const selEndFrac = rangeIndices ? (rangeIndices[1] + 1) / buckets.length : 0;
@@ -456,37 +456,42 @@ export const TimelineHistogram = memo(function TimelineHistogram({
         )}
 
         {/* Hover tooltip */}
-        {hoverX !== null && hoverBucket && (
+        {hoverX !== null && hoverBucket && hoverLabel && (
           <div
-            className="absolute -top-7 pointer-events-none z-30 transform -translate-x-1/2"
+            className="absolute -top-8 pointer-events-none z-30 transform -translate-x-1/2"
             style={{ left: `${hoverX}px` }}
           >
-            <div className="bg-popover border border-border text-popover-foreground text-[9px] font-mono px-1.5 py-0.5 rounded shadow-md whitespace-nowrap">
-              {hoverTime} &middot; {hoverBucket.total} entries
+            <div className="bg-popover border border-border text-popover-foreground text-[10px] font-mono px-2 py-1 rounded shadow-md whitespace-nowrap">
+              <span className="font-semibold">{hoverLabel.date}</span>{' '}
+              {hoverLabel.time} &middot; {hoverBucket.total} entries
             </div>
           </div>
         )}
       </div>
 
       {/* Time labels */}
-      <div className="flex justify-between mt-0.5">
-        <span className="text-[9px] text-muted-foreground font-mono">
-          {formatTimestamp(buckets[0].startTime)}
-        </span>
+      <div className="flex justify-between items-start mt-1">
+        <div className="font-mono text-muted-foreground">
+          <div className="text-[11px] font-medium">{formatGraphTimestamp(buckets[0].startTime).date}</div>
+          <div className="text-[10px]">{formatGraphTimestamp(buckets[0].startTime).time}</div>
+        </div>
         {rangeIndices && (
-          <div className="flex items-center gap-1">
-            <span className="text-[9px] text-primary font-mono font-medium">
-              {formatTimestamp(buckets[rangeIndices[0]].startTime)}
-            </span>
-            <span className="text-[9px] text-muted-foreground">&mdash;</span>
-            <span className="text-[9px] text-primary font-mono font-medium">
-              {formatTimestamp(buckets[rangeIndices[1]].endTime)}
-            </span>
+          <div className="flex items-center gap-1.5 text-center">
+            <div className="font-mono text-primary">
+              <div className="text-[11px] font-semibold">{formatGraphTimestamp(buckets[rangeIndices[0]].startTime).date}</div>
+              <div className="text-[10px] font-medium">{formatGraphTimestamp(buckets[rangeIndices[0]].startTime).time}</div>
+            </div>
+            <span className="text-[10px] text-muted-foreground">&mdash;</span>
+            <div className="font-mono text-primary">
+              <div className="text-[11px] font-semibold">{formatGraphTimestamp(buckets[rangeIndices[1]].endTime).date}</div>
+              <div className="text-[10px] font-medium">{formatGraphTimestamp(buckets[rangeIndices[1]].endTime).time}</div>
+            </div>
           </div>
         )}
-        <span className="text-[9px] text-muted-foreground font-mono">
-          {formatTimestamp(buckets[buckets.length - 1].endTime)}
-        </span>
+        <div className="font-mono text-muted-foreground text-right">
+          <div className="text-[11px] font-medium">{formatGraphTimestamp(buckets[buckets.length - 1].endTime).date}</div>
+          <div className="text-[10px]">{formatGraphTimestamp(buckets[buckets.length - 1].endTime).time}</div>
+        </div>
       </div>
     </div>
   );

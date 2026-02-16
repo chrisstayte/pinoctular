@@ -107,6 +107,22 @@ export function formatFullTimestamp(time: number): string {
   })
 }
 
+/**
+ * Format a timestamp for graph axis labels.
+ * Always shows the date (short month + day) on a separate line from the time.
+ */
+export function formatGraphTimestamp(time: number): { date: string; time: string } {
+  const d = new Date(time)
+  const datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const timePart = d.toLocaleTimeString('en-US', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+  return { date: datePart, time: timePart }
+}
+
 export interface ParseLogDiagnostics {
   totalLines: number
   parsedLines: number
