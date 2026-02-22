@@ -603,10 +603,14 @@ export function LogViewer() {
   const handleLoadSession = useCallback(
     async (id: string) => {
       try {
+        console.log('[handleLoadSession] loading session:', id);
         await sessionMgr.loadSession(id);
+        console.log('[handleLoadSession] loadSession resolved');
         const session = sessionMgr.manager.getSession(id);
+        console.log('[handleLoadSession] getSession result:', !!session);
         if (session) {
           const sessionSources = sessionMgr.manager.getSessionSources(id);
+          console.log('[handleLoadSession] sessionSources:', sessionSources.length, 'sources, logs per source:', sessionSources.map(s => s.logs.length));
           setSources(sessionSources);
           setActiveSessionId(id);
           setSearch('');
@@ -628,8 +632,8 @@ export function LogViewer() {
           setShowBookmarksOnly(false);
           setViewMode('table');
         }
-      } catch {
-        // load failed
+      } catch (err) {
+        console.error('[handleLoadSession] error:', err);
       }
     },
     [sessionMgr]

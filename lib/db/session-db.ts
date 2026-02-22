@@ -113,11 +113,28 @@ export function queryAllLogs(db: Database): import('@/lib/log-types').PinoLogEnt
 
 export function queryLogSources(db: Database): { name: string; logs: import('@/lib/log-types').PinoLogEntry[] }[] {
   const sources = getSources(db)
+  console.log('[queryLogSources] sources:', sources)
   return sources.map((source) => {
+    // Try without params first for debugging
+    const allResults = db.exec('SELECT COUNT(*) FROM logs')
+    console.log('[queryLogSources] total rows:', allResults.length > 0 ? allResults[0].values[0][0] : 0)
     const results = db.exec('SELECT raw_json FROM logs WHERE source = ? ORDER BY source_index ASC', [source])
-    const logs = results.length > 0
-      ? results[0].values.map((row: unknown[]) => JSON.parse(row[0] as string))
-      : []
+    console.log('[queryLogSources] parameterized query for source', JSON.stringify(source), 'returned', results.length, 'result sets, rows:', results.length > 0 ? results[0].values.length : 0)
+    if (results.length === 0) {
+      // Fallback: try with prepare/bind instead of exec params
+      console.log('[queryLogSources] Trying prepare/bind approach...')
+      const stmt = db.prepare('SELECT raw_json FROM logs WHERE source = ? ORDER BY source_index ASC')
+      stmt.bind([source])
+      const rows: unknown[][] = []
+      while (stmt.step()) {
+        rows.push(stmt.get())
+      }
+      stmt.free()
+      console.log('[queryLogSources] prepare/bind returned', rows.length, 'rows')
+      const logs = rows.map((row: unknown[]) => JSON.parse(row[0] as string))
+      return { name: source, logs }
+    }
+    const logs = results[0].values.map((row: unknown[]) => JSON.parse(row[0] as string))
     return { name: source, logs }
   })
 }
