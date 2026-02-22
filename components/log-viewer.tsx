@@ -50,6 +50,10 @@ import { useWatchConfig } from '@/hooks/use-watch-config';
 import { useLogStream } from '@/hooks/use-log-stream';
 import { fetchLogs, type WatchedFolder } from '@/lib/watch-api';
 import { parseLogsDetailed } from '@/lib/log-types';
+import { useSessionManager } from '@/hooks/use-session-manager';
+import { useStorageStats } from '@/hooks/use-storage-stats';
+import { SessionManagerPanel } from '@/components/session-manager-panel';
+import { StorageIndicator } from '@/components/storage-indicator';
 import {
   Bookmark,
   BookmarkCheck,
@@ -61,6 +65,7 @@ import {
   AlertTriangle,
   TrendingUp,
   Settings2,
+  Database,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -84,38 +89,15 @@ const DEFAULT_LEVELS: LogLevel[] = [
   'fatal',
 ];
 
-const STORAGE_KEY = 'pinoctular:sources';
-
-function loadCachedSources(): LogSource[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-  } catch {
-    // corrupted data — ignore
-  }
-  return [];
-}
-
 export function LogViewer() {
-  // ─── Sources state ───────────────────────────────────────────────
-  const [sources, setSources] = useState<LogSource[]>(loadCachedSources);
+  // ─── Session management ─────────────────────────────────────────
+  const sessionMgr = useSessionManager();
+  const { stats: storageStats, refresh: refreshStorage } = useStorageStats(sessionMgr.storedSessions);
+  const [sessionPanelOpen, setSessionPanelOpen] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
-  // Persist sources to localStorage (skip watched sources — they're fetched live)
-  useEffect(() => {
-    try {
-      const persistable = sources.filter((s) => !s.watched);
-      if (persistable.length === 0) {
-        localStorage.removeItem(STORAGE_KEY);
-      } else {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
-      }
-    } catch {
-      // storage full or unavailable — silently ignore
-    }
-  }, [sources]);
+  // ─── Sources state ───────────────────────────────────────────────
+  const [sources, setSources] = useState<LogSource[]>([]);
 
   // ─── Merged log entries with source tags ─────────────────────────
   const allLogs = useMemo<SourcedLogEntry[]>(() => {
@@ -417,7 +399,7 @@ export function LogViewer() {
 
   // ─── Callbacks ─────────────────────────────────────────────────
   const handleLogsLoaded = useCallback(
-    (newLogs: PinoLogEntry[], src: string) => {
+    async (newLogs: PinoLogEntry[], src: string) => {
       setSources([{ name: src, logs: newLogs }]);
       setSearch('');
       setIsRegex(false);
@@ -438,12 +420,22 @@ export function LogViewer() {
       setShowBookmarksOnly(false);
       setContextLines(0);
       setViewMode('table');
+
+      // Create a new SQLite session
+      try {
+        const sessionName = src.replace(/\.[^.]+$/, '') || 'Session';
+        const id = await sessionMgr.createSession(sessionName, [{ name: src, logs: newLogs }]);
+        setActiveSessionId(id);
+        refreshStorage();
+      } catch {
+        // SQLite/IndexedDB unavailable — continue with in-memory only
+      }
     },
-    []
+    [sessionMgr, refreshStorage]
   );
 
   const handleAddSource = useCallback(
-    (newLogs: PinoLogEntry[], src: string) => {
+    async (newLogs: PinoLogEntry[], src: string) => {
       setSources((prev) => [...prev, { name: src, logs: newLogs }]);
       setActiveSources((prev) => new Set([...prev, src]));
       const mods = new Set<string>();
@@ -451,8 +443,18 @@ export function LogViewer() {
         if (log.module) mods.add(log.module as string);
       }
       setActiveModules((prev) => new Set([...prev, ...mods]));
+
+      // Add to active session
+      if (activeSessionId) {
+        try {
+          await sessionMgr.addSource(activeSessionId, src, newLogs);
+          refreshStorage();
+        } catch {
+          // continue with in-memory only
+        }
+      }
     },
-    []
+    [activeSessionId, sessionMgr, refreshStorage]
   );
 
   const handleClear = useCallback(() => {
@@ -464,6 +466,7 @@ export function LogViewer() {
     setParseDiagnostics({});
     setAutoScroll(true);
     setActiveWatchFolder(null);
+    setActiveSessionId(null);
   }, []);
 
   const handleWatchFolderSelect = useCallback(
@@ -593,6 +596,92 @@ export function LogViewer() {
       setParseDiagnostics((prev) => ({ ...prev, [source]: diagnostics }));
     },
     []
+  );
+
+  // ─── Session handlers ───────────────────────────────────────────
+  const handleLoadSession = useCallback(
+    async (id: string) => {
+      try {
+        await sessionMgr.loadSession(id);
+        const session = sessionMgr.manager.getSession(id);
+        if (session) {
+          const sessionSources = sessionMgr.manager.getSessionSources(id);
+          setSources(sessionSources);
+          setActiveSessionId(id);
+          setSearch('');
+          setIsRegex(false);
+          setActiveLevels(new Set(DEFAULT_LEVELS));
+          const mods = new Set<string>();
+          for (const src of sessionSources) {
+            for (const log of src.logs) {
+              if (log.module) mods.add(log.module as string);
+            }
+          }
+          setActiveModules(mods);
+          setActiveSources(new Set(sessionSources.map((s) => s.name)));
+          setSortField('time');
+          setSortDirection('asc');
+          setFieldFilters([]);
+          setTimeRange(null);
+          setBookmarks(new Set());
+          setShowBookmarksOnly(false);
+          setViewMode('table');
+        }
+      } catch {
+        // load failed
+      }
+    },
+    [sessionMgr]
+  );
+
+  const handleActivateSession = useCallback(
+    (id: string) => {
+      sessionMgr.activateSession(id);
+      // Reload sources from all active sessions
+      const activeSources = sessionMgr.getActiveLogSources();
+      setSources(activeSources);
+      setActiveSources(new Set(activeSources.map((s) => s.name)));
+    },
+    [sessionMgr]
+  );
+
+  const handleDeactivateSession = useCallback(
+    (id: string) => {
+      sessionMgr.deactivateSession(id);
+      // Reload sources from remaining active sessions
+      const activeSources = sessionMgr.getActiveLogSources();
+      setSources(activeSources);
+      setActiveSources(new Set(activeSources.map((s) => s.name)));
+      if (activeSessionId === id) {
+        const remaining = sessionMgr.activeSessions;
+        setActiveSessionId(remaining.length > 0 ? remaining[0].id : null);
+      }
+    },
+    [sessionMgr, activeSessionId]
+  );
+
+  const handleDeleteSession = useCallback(
+    async (id: string) => {
+      await sessionMgr.deleteSession(id);
+      if (activeSessionId === id) {
+        const remaining = sessionMgr.activeSessions;
+        if (remaining.length > 0) {
+          setActiveSessionId(remaining[0].id);
+          const activeSources = sessionMgr.getActiveLogSources();
+          setSources(activeSources);
+          setActiveSources(new Set(activeSources.map((s) => s.name)));
+        } else {
+          setSources([]);
+          setActiveSessionId(null);
+        }
+      } else {
+        const activeSources = sessionMgr.getActiveLogSources();
+        setSources(activeSources);
+        setActiveSources(new Set(activeSources.map((s) => s.name)));
+      }
+      refreshStorage();
+    },
+    [sessionMgr, activeSessionId, refreshStorage]
   );
 
   useEffect(() => {
@@ -834,6 +923,27 @@ export function LogViewer() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Storage indicator */}
+          <div className="hidden sm:flex">
+            <StorageIndicator stats={storageStats} />
+          </div>
+
+          {/* Session manager button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs gap-1.5"
+            onClick={() => setSessionPanelOpen(true)}
+            title="Sessions"
+          >
+            <Database className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">
+              {sessionMgr.summaries.length > 0
+                ? `${sessionMgr.summaries.length}`
+                : ''}
+            </span>
+          </Button>
+
           {/* ── Mobile/tablet controls trigger (< lg) ── */}
           {hasLogs && (
             <Button
@@ -1408,6 +1518,29 @@ export function LogViewer() {
 
       {/* Keyboard shortcuts dialog */}
       <KeyboardShortcuts open={showShortcuts} onOpenChange={setShowShortcuts} />
+
+      {/* Session manager panel */}
+      <Sheet open={sessionPanelOpen} onOpenChange={setSessionPanelOpen}>
+        <SheetContent side="right" className="w-80 sm:w-96 overflow-y-auto">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="text-sm">Sessions</SheetTitle>
+            <SheetDescription className="text-xs">
+              Manage your log sessions stored in the browser
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4">
+            <StorageIndicator stats={storageStats} />
+            <SessionManagerPanel
+              summaries={sessionMgr.summaries}
+              storedSessions={sessionMgr.storedSessions}
+              onActivate={handleActivateSession}
+              onDeactivate={handleDeactivateSession}
+              onDelete={handleDeleteSession}
+              onLoad={handleLoadSession}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
