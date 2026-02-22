@@ -2,11 +2,16 @@ import initSqlJs, { type Database } from 'sql.js'
 
 let sqlPromise: Promise<Awaited<ReturnType<typeof initSqlJs>>> | null = null
 
+function getWasmUrl(): string {
+  const basePath = process.env.NODE_ENV === 'production'
+    ? (process.env.__NEXT_ROUTER_BASEPATH ?? '')
+    : ''
+  return `${window.location.origin}${basePath}/sql-wasm.wasm`
+}
+
 function getSql() {
   if (!sqlPromise) {
-    sqlPromise = initSqlJs({
-      locateFile: () => `${window.location.origin}${process.env.NODE_ENV === 'production' ? (process.env.__NEXT_ROUTER_BASEPATH ?? '') : ''}/sql-wasm.wasm`,
-    })
+    sqlPromise = initSqlJs({ locateFile: () => getWasmUrl() })
   }
   return sqlPromise
 }

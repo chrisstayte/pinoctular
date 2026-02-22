@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   getSessionManager,
   type SessionSummary,

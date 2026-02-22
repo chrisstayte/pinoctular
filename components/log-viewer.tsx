@@ -423,7 +423,8 @@ export function LogViewer() {
 
       // Create a new SQLite session
       try {
-        const sessionName = src.replace(/\.[^.]+$/, '') || 'Session';
+        const baseName = src.replace(/\.[^.]+$/, '')
+        const sessionName = baseName || `Session ${new Date().toLocaleString()}`;
         const id = await sessionMgr.createSession(sessionName, [{ name: src, logs: newLogs }]);
         setActiveSessionId(id);
         refreshStorage();
